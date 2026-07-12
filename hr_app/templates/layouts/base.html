@@ -18,54 +18,60 @@
             </div>
             <nav class="sidebar-nav">
                 {% set ep = request.endpoint or '' %}
-                <a href="{{ url_for('dashboard') }}" class="nav-item {{ 'active' if ep == 'dashboard' }}">
-                    <span class="nav-icon">&#9679;</span> Dashboard
-                </a>
-                <a href="{{ url_for('attendance.index') }}" class="nav-item {{ 'active' if ep.startswith('attendance.') and ep not in ('attendance.admin_view','attendance.policies') }}">
-                    <span class="nav-icon">&#9200;</span> Attendance
-                </a>
-                <a href="{{ url_for('leave.index') }}" class="nav-item {{ 'active' if ep.startswith('leave.') and ep not in ('leave.holidays','leave.workflows') }}">
-                    <span class="nav-icon">&#128197;</span> Leaves
-                </a>
-                <a href="{{ url_for('timesheet.index') }}" class="nav-item {{ 'active' if ep.startswith('timesheet.') and ep != 'timesheet.projects' }}">
-                    <span class="nav-icon">&#128203;</span> Timesheets
-                </a>
-                <a href="{{ url_for('ess.index') }}" class="nav-item {{ 'active' if ep.startswith('ess.') }}">
-                    <span class="nav-icon">&#128100;</span> My Profile
-                </a>
-                <a href="{{ url_for('digital_files.index') }}" class="nav-item {{ 'active' if ep.startswith('digital_files.') and ep != 'digital_files.admin' }}">
-                    <span class="nav-icon">&#128193;</span> My Files
-                </a>
-                <a href="{{ url_for('compensation.index') }}" class="nav-item {{ 'active' if ep.startswith('compensation.') }}">
-                    <span class="nav-icon">&#128176;</span> Compensation
-                </a>
-                <a href="{{ url_for('pf.index') }}" class="nav-item {{ 'active' if ep.startswith('pf.') and ep not in ('pf.config','pf.button_permissions') }}">
-                    <span class="nav-icon">&#128179;</span> Provident Fund
-                </a>
-                <a href="{{ url_for('workplace.index') }}" class="nav-item {{ 'active' if ep.startswith('workplace.') }}">
-                    <span class="nav-icon">&#128187;</span> Workplace
-                </a>
+                {% macro nav_link(endpoint, icon, label, active_check) %}
+                <a href="{{ url_for(endpoint) }}" class="nav-item {{ 'active' if active_check else '' }}"><span class="nav-icon">{{ icon|safe }}</span> <span>{{ label }}</span></a>
+                {% endmacro %}
+                {% macro nav_group(name, icon, items) %}
+                {% set group_active = items|selectattr('active_check')|list|length > 0 %}
+                <div class="nav-group {{ 'expanded' if group_active else '' }}" data-group="{{ name|lower|replace(' ','-') }}">
+                    <div class="nav-group-header"><span class="nav-icon">{{ icon|safe }}</span><span>{{ name }}</span><span class="group-chevron">&#9662;</span></div>
+                    <div class="nav-group-items">
+                        {% for item in items %}<a href="{{ url_for(item.endpoint) }}" class="nav-item {{ 'active' if item.active_check else '' }}"><span class="nav-icon">{{ item.icon|safe }}</span><span>{{ item.label }}</span></a>{% endfor %}
+                    </div>
+                </div>
+                {% endmacro %}
+
+                {{ nav_link('dashboard', '&#9679;', 'Dashboard', ep == 'dashboard') }}
+
+                {% set self_service = [
+                    {'endpoint': 'attendance.index', 'icon': '&#9200;', 'label': 'Attendance', 'active_check': ep.startswith('attendance.') and ep not in ('attendance.admin_view','attendance.policies')},
+                    {'endpoint': 'leave.index', 'icon': '&#128197;', 'label': 'Leaves', 'active_check': ep.startswith('leave.') and ep not in ('leave.holidays','leave.workflows')},
+                    {'endpoint': 'timesheet.index', 'icon': '&#128203;', 'label': 'Timesheets', 'active_check': ep.startswith('timesheet.') and ep != 'timesheet.projects'},
+                    {'endpoint': 'ess.index', 'icon': '&#128100;', 'label': 'My Profile', 'active_check': ep.startswith('ess.')},
+                    {'endpoint': 'digital_files.index', 'icon': '&#128193;', 'label': 'My Files', 'active_check': ep.startswith('digital_files.') and ep != 'digital_files.admin'},
+                ] %}
+                {{ nav_group('Self Service', '&#128736;', self_service) }}
+
+                {% set financial = [
+                    {'endpoint': 'compensation.index', 'icon': '&#128176;', 'label': 'Compensation', 'active_check': ep.startswith('compensation.')},
+                    {'endpoint': 'pf.index', 'icon': '&#128179;', 'label': 'Provident Fund', 'active_check': ep.startswith('pf.') and ep not in ('pf.config','pf.button_permissions')},
+                ] %}
+                {{ nav_group('Financial', '&#128188;', financial) }}
+
+                {{ nav_link('workplace.index', '&#128187;', 'Workplace', ep.startswith('workplace.')) }}
+
                 {% if current_user.is_admin() or current_user.is_manager() %}
-                <div class="nav-section-label">Management</div>
-                <a href="{{ url_for('mss.index') }}" class="nav-item {{ 'active' if ep in ('mss.index','mss.team','mss.evaluate','mss.team_calendar','mss.team_availability') }}">
-                    <span class="nav-icon">&#128101;</span> My Team
-                </a>
-                <a href="{{ url_for('mss.approvals') }}" class="nav-item {{ 'active' if ep == 'mss.approvals' }}">&#9989; Approvals Inbox</a>
-                <a href="{{ url_for('reports.index') }}" class="nav-item {{ 'active' if ep.startswith('reports.') }}">
-                    <span class="nav-icon">&#128200;</span> Reports & Analytics
-                </a>
+                {% set mgmt = [
+                    {'endpoint': 'mss.index', 'icon': '&#128101;', 'label': 'My Team', 'active_check': ep in ('mss.index','mss.team','mss.evaluate','mss.team_calendar','mss.team_availability')},
+                    {'endpoint': 'mss.approvals', 'icon': '&#9989;', 'label': 'Approvals', 'active_check': ep == 'mss.approvals'},
+                    {'endpoint': 'reports.index', 'icon': '&#128200;', 'label': 'Reports', 'active_check': ep.startswith('reports.')},
+                ] %}
+                {{ nav_group('Management', '&#128202;', mgmt) }}
                 {% endif %}
+
                 {% if current_user.is_admin() %}
-                <div class="nav-section-label">Admin</div>
-                <a href="{{ url_for('communications.index') }}" class="nav-item {{ 'active' if ep == 'communications.index' }}">&#128231; Notifications</a>
-                <a href="{{ url_for('attendance.admin_view') }}" class="nav-item {{ 'active' if ep == 'attendance.admin_view' }}">&#128197; All Attendance</a>
-                <a href="{{ url_for('attendance.policies') }}" class="nav-item {{ 'active' if ep == 'attendance.policies' }}">&#9881; Time Policies</a>
-                <a href="{{ url_for('leave.holidays') }}" class="nav-item {{ 'active' if ep == 'leave.holidays' }}">&#127775; Holidays</a>
-                <a href="{{ url_for('leave.workflows') }}" class="nav-item {{ 'active' if ep == 'leave.workflows' }}">&#128295; Approval Workflows</a>
-                <a href="{{ url_for('timesheet.projects') }}" class="nav-item {{ 'active' if ep == 'timesheet.projects' }}">&#128194; Projects</a>
-                <a href="{{ url_for('digital_files.admin') }}" class="nav-item {{ 'active' if ep == 'digital_files.admin' }}">&#128193; All Files</a>
-                <a href="{{ url_for('pf.config') }}" class="nav-item {{ 'active' if ep == 'pf.config' }}">&#9881; PF Config</a>
-                <a href="{{ url_for('auth.user_list') }}" class="nav-item {{ 'active' if ep in ('auth.user_list','auth.user_add','auth.user_edit') }}">&#128101; User Management</a>
+                {% set admin_items = [
+                    {'endpoint': 'communications.index', 'icon': '&#128231;', 'label': 'Notifications', 'active_check': ep == 'communications.index'},
+                    {'endpoint': 'attendance.admin_view', 'icon': '&#128197;', 'label': 'All Attendance', 'active_check': ep == 'attendance.admin_view'},
+                    {'endpoint': 'attendance.policies', 'icon': '&#9881;', 'label': 'Time Policies', 'active_check': ep == 'attendance.policies'},
+                    {'endpoint': 'leave.holidays', 'icon': '&#127775;', 'label': 'Holidays', 'active_check': ep == 'leave.holidays'},
+                    {'endpoint': 'leave.workflows', 'icon': '&#128295;', 'label': 'Workflows', 'active_check': ep == 'leave.workflows'},
+                    {'endpoint': 'timesheet.projects', 'icon': '&#128194;', 'label': 'Projects', 'active_check': ep == 'timesheet.projects'},
+                    {'endpoint': 'digital_files.admin', 'icon': '&#128193;', 'label': 'All Files', 'active_check': ep == 'digital_files.admin'},
+                    {'endpoint': 'pf.config', 'icon': '&#9881;', 'label': 'PF Config', 'active_check': ep == 'pf.config'},
+                    {'endpoint': 'auth.user_list', 'icon': '&#128101;', 'label': 'Users', 'active_check': ep in ('auth.user_list','auth.user_add','auth.user_edit')},
+                ] %}
+                {{ nav_group('Administration', '&#128295;', admin_items) }}
                 {% endif %}
             </nav>
         </aside>

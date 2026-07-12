@@ -20,7 +20,7 @@ a:hover { text-decoration: underline; }
 .app-layout { display: flex; min-height: 100vh; }
 
 /* ── Premium Sidebar ── */
-.sidebar { width: 250px; background: linear-gradient(180deg, #0f172a 0%, #1a2a4a 100%); color: #e2e8f0; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.05); }
+.sidebar { width: 250px; height: 100vh; position: sticky; top: 0; background: linear-gradient(180deg, #0f172a 0%, #1a2a4a 100%); color: #e2e8f0; display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.05); }
 .sidebar-header { padding: 20px 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 10px; }
 .sidebar-header .brand-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #3b82f6, #6366f1); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: #fff; flex-shrink: 0; }
 .sidebar-header h2 { font-size: 16px; font-weight: 700; letter-spacing: 0.3px; color: #f1f5f9; white-space: nowrap; }
@@ -28,11 +28,24 @@ a:hover { text-decoration: underline; }
 .sidebar-nav::-webkit-scrollbar { width: 3px; }
 .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
 
-.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 18px; color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 500; transition: all 0.18s ease; border-left: 3px solid transparent; margin: 1px 0; }
+/* ── Collapsible Nav Groups ── */
+.nav-group { margin: 2px 0; }
+.nav-group-header { display: flex; align-items: center; gap: 10px; padding: 10px 18px; color: rgba(255,255,255,0.45); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; cursor: pointer; transition: all 0.2s; user-select: none; }
+.nav-group-header:hover { color: rgba(255,255,255,0.7); }
+.nav-group-header .nav-icon { font-size: 13px; width: 22px; text-align: center; flex-shrink: 0; }
+.group-chevron { margin-left: auto; font-size: 11px; transition: transform 0.25s ease; color: rgba(255,255,255,0.3); }
+.nav-group.expanded .group-chevron { transform: rotate(180deg); }
+.nav-group-items { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+.nav-group.expanded .nav-group-items { max-height: 400px; }
+.nav-group-items .nav-item { padding-left: 46px; border-left-color: transparent; font-size: 12.5px; }
+.nav-group-items .nav-item .nav-icon { width: 18px; font-size: 13px; }
+.nav-group-items .nav-item.active { border-left-color: #3b82f6; }
+
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 18px; color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 500; transition: all 0.18s ease; border-left: 3px solid transparent; margin: 1px 0; text-decoration: none; }
 .nav-item:hover { background: rgba(255,255,255,0.07); color: #e2e8f0; text-decoration: none; border-left-color: rgba(59,130,246,0.4); }
 .nav-item.active { background: rgba(59,130,246,0.12); color: #fff; font-weight: 600; border-left-color: #3b82f6; }
 .nav-item .nav-icon { font-size: 15px; width: 22px; text-align: center; flex-shrink: 0; }
-.nav-section-label { padding: 16px 18px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: rgba(255,255,255,0.3); font-weight: 700; }
+.nav-item span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Main Content ── */
 .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -175,10 +188,14 @@ tr:hover td { background: #f8faff; }
 .sidebar.collapsed .sidebar-header { padding: 16px 12px; justify-content: center; }
 .sidebar.collapsed .sidebar-header h2 { display: none; }
 .sidebar.collapsed .sidebar-header .brand-icon { width: 36px; height: 36px; font-size: 18px; }
-.sidebar.collapsed .nav-item span:not(.nav-icon) { display: none; }
-.sidebar.collapsed .nav-section-label { display: none; }
+.sidebar.collapsed .nav-item span { display: none; }
 .sidebar.collapsed .nav-item { padding: 10px 0; justify-content: center; border-left: none; }
 .sidebar.collapsed .nav-item .nav-icon { font-size: 18px; width: auto; }
+.sidebar.collapsed .nav-group-header span:not(.nav-icon) { display: none; }
+.sidebar.collapsed .nav-group-header .group-chevron { display: none; }
+.sidebar.collapsed .nav-group-header { padding: 8px 0; justify-content: center; }
+.sidebar.collapsed .nav-group-items { display: none; }
+.sidebar.collapsed .nav-group-items .nav-item { display: none; }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

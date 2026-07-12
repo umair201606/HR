@@ -28,6 +28,29 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    // ── Collapsible Nav Groups ──
+    const navGroups = document.querySelectorAll('.nav-group');
+    navGroups.forEach(group => {
+        const header = group.querySelector('.nav-group-header');
+        const groupName = group.dataset.group;
+
+        // Restore saved state (default: expanded if active)
+        const saved = localStorage.getItem('sidebar_group_' + groupName);
+        const isActive = group.classList.contains('expanded');
+        if (saved === 'collapsed') {
+            group.classList.remove('expanded');
+        } else if (saved === 'expanded' || isActive) {
+            group.classList.add('expanded');
+            localStorage.setItem('sidebar_group_' + groupName, 'expanded');
+        }
+
+        header?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const nowExpanded = group.classList.toggle('expanded');
+            localStorage.setItem('sidebar_group_' + groupName, nowExpanded ? 'expanded' : 'collapsed');
+        });
+    });
+
     // Notification dropdown
     const notifBtn = document.getElementById('notif-btn');
     const notifMenu = document.getElementById('notif-menu');
