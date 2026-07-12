@@ -1,0 +1,51 @@
+{% extends "layouts/base.html" %}
+{% block title %}My Performance - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Performance Reviews</h1>
+</div>
+<div class="card mb-20">
+    <div class="card-header">Review History</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Period</th><th>Score</th><th>Productivity</th><th>Quality</th><th>Teamwork</th><th>Feedback</th><th>Date</th></tr></thead>
+            <tbody>
+                {% for r in reviews %}
+                <tr>
+                    <td>{{ r.review_period }}</td>
+                    <td>{{ r.overall_score or '-' }}</td>
+                    <td>{{ r.productivity_rating or '-' }}/5</td>
+                    <td>{{ r.quality_rating or '-' }}/5</td>
+                    <td>{{ r.teamwork_rating or '-' }}/5</td>
+                    <td>{{ r.feedback[:50] if r.feedback else '-' }}</td>
+                    <td>{{ r.completed_at.strftime('%d-%b-%Y') if r.completed_at else '-' }}</td>
+                </tr>
+                {% else %}<tr><td colspan="7" class="text-center" style="color:#999;">No reviews yet</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="card">
+    <div class="card-header">Active Goals</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Goal</th><th>Target Date</th><th>Progress</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for g in goals %}
+                <tr>
+                    <td>{{ g.title }}</td>
+                    <td>{{ g.target_date or '-' }}</td>
+                    <td>
+                        <div style="background:#e0e0e0;border-radius:10px;height:16px;width:100%;position:relative;">
+                            <div style="background:#1a237e;border-radius:10px;height:16px;width:{{ g.progress_pct }}%;"></div>
+                            <span style="position:absolute;top:0;left:50%;font-size:10px;font-weight:600;">{{ g.progress_pct }}%</span>
+                        </div>
+                    </td>
+                    <td><span class="badge badge-{{ 'success' if g.status == 'completed' else 'info' }}">{{ g.status }}</span></td>
+                </tr>
+                {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No goals set</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

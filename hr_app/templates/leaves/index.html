@@ -1,0 +1,46 @@
+{% extends "layouts/base.html" %}
+{% block title %}Leaves - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Leave Management</h1>
+        <p class="subtitle">Apply for leave and check your balances</p>
+    </div>
+    <a href="{{ url_for('leave.apply') }}" class="btn btn-primary">&#43; Apply Leave</a>
+</div>
+
+<div class="stats-grid">
+    {% for q in quotas %}
+    <div class="stat-card">
+        <div class="stat-label">{{ q.leave_type.name }} ({{ q.leave_type.code }})</div>
+        <div class="stat-value" style="font-size:22px;">{{ q.remaining }}</div>
+        <div class="stat-sub">Used {{ q.used }} / Total {{ q.total }}</div>
+    </div>
+    {% else %}
+    <div class="stat-card"><div class="stat-label">No quotas configured</div></div>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <div class="card-header">My Leave Requests</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Type</th><th>Start</th><th>End</th><th>Days</th><th>Status</th><th>Applied</th></tr>
+            </thead>
+            <tbody>
+                {% for r in requests %}
+                <tr>
+                    <td>{{ r.leave_type.name }}</td>
+                    <td>{{ r.start_date }}</td>
+                    <td>{{ r.end_date }}</td>
+                    <td>{{ r.total_days }}</td>
+                    <td><span class="badge badge-{{ 'success' if r.status == 'approved' else 'danger' if r.status == 'rejected' else 'warning' }}">{{ r.status }}</span></td>
+                    <td>{{ r.created_at.strftime('%d-%b-%Y') }}</td>
+                </tr>
+                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No leave requests</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

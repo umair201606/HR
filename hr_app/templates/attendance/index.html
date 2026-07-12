@@ -1,0 +1,105 @@
+{% extends "layouts/base.html" %}
+{% block title %}Attendance - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Time & Attendance</h1>
+        <p class="subtitle">{{ policy.name if policy else 'Standard' }} Shift: {{ (policy.shift_start.strftime('%H:%M') if policy else '09:00') }} - {{ (policy.shift_end.strftime('%H:%M') if policy else '18:00') }}</p>
+    </div>
+    <a href="{{ url_for('attendance.overview') }}" class="btn btn-outline btn-sm">View Time Account</a>
+</div>
+
+{% if violations %}
+<div class="flash-warning">&#9888; Policy Violations: {{ violations|join(', ') }}</div>
+{% endif %}
+
+<div class="stats-grid">
+    <div class="stat-card"><div class="stat-label">Total Days</div><div class="stat-value">{{ stats.total if stats else 0 }}</div></div>
+    <div class="stat-card"><div class="stat-label">Late Days</div><div class="stat-value">{{ stats.late_days if stats else 0 }}</div></div>
+    <div class="stat-card"><div class="stat-label">Half Days</div><div class="stat-value">{{ stats.half_days if stats else 0 }}</div></div>
+    <div class="stat-card"><div class="stat-label">OT Hours</div><div class="stat-value">{{ overtime|round(1) }}</div></div>
+    <div class="stat-card" style="text-align:center;">
+        <div class="stat-label">Today</div>
+        {% if today_att and today_att.clock_in and not today_att.clock_out %}
+        <div class="stat-value" style="font-size:16px;color:#1b5e20;">
+            {{ 'On Break' if active_break else 'Clocked In' }}
+        </div>
+        <div class="stat-sub">{{ today_att.clock_in.strftime('%H:%M') }}</div>
+        {% elif today_att and today_att.clock_out %}
+        <div class="stat-value" style="font-size:16px;color:#888;">Done</div>
+        <div class="stat-sub">{{ today_att.clock_in.strftime('%H:%M') }} - {{ today_att.clock_out.strftime('%H:%M') }}</div>
+        {% else %}
+        <div class="stat-value" style="font-size:16px;color:#c62828;">Not Clocked</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-20" style="text-align:center;padding:30px;">
+    {% if not today_att or not today_att.clock_in %}
+    <button class="btn btn-accent" id="clock-in-btn" style="font-size:18px;padding:16px 40px;">&#9654; Clock In</button>
+    {% elif today_att and today_att.clock_in and not today_att.clock_out %}
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        {% if not active_break %}
+        <button class="btn btn-warning" id="break-start-btn" style="font-size:16px;padding:12px 30px;">&#9201; Break Start</button>
+        {% else %}
+        <button class="btn btn-info" id="break-end-btn" style="font-size:16px;padding:12px 30px;">&#9203; Break End</button>
+        {% endif %}
+        <button class="btn btn-danger" id="clock-out-btn" style="font-size:18px;padding:16px 40px;">&#9724; Clock Out</button>
+    </div>
+    {% else %}
+    <p style="font-size:16px;color:#888;">Shift completed for today.</p>
+    {% endif %}
+    <div id="clock-status" style="margin-top:10px;font-size:14px;font-weight:600;"></div>
+</div>
+
+<div class="card">
+    <div class="card-header">Attendance Log (Last 30 Days)</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Status</th><th>Late</th><th>Half Day</th></tr></thead>
+            <tbody>
+                {% for r in records %}
+                <tr>
+                    <td>{{ r.date }}</td>
+                    <td>{{ r.clock_in.strftime('%H:%M:%S') if r.clock_in else '-' }}</td>
+                    <td>{{ r.clock_out.strftime('%H:%M:%S') if r.clock_out else '-' }}</td>
+                    <td><span class="badge badge-{{ 'success' if r.status == 'present' else 'warning' if r.status == 'half-day' else 'info' }}">{{ r.status }}</span></td>
+                    <td>{% if r.is_late %}&#10060;{% else %}&#10004;{% endif %}</td>
+                    <td>{% if r.is_half_day %}&#10060;{% else %}&#10004;{% endif %}</td>
+                </tr>
+                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No records</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function doAction(url, btn, statusEl) {
+    btn.disabled = true;
+    try {
+        const r = await fetch(url, { method: 'POST' });
+        const d = await r.json();
+        if (d.error) { statusEl.textContent = d.error; statusEl.style.color = '#c62828'; return; }
+        statusEl.textContent = d.message;
+        statusEl.style.color = '#2e7d32';
+        setTimeout(() => location.reload(), 1500);
+    } catch(e) { statusEl.textContent = 'Error: ' + e.message; statusEl.style.color = '#c62828'; }
+    btn.disabled = false;
+}
+
+document.getElementById('clock-in-btn')?.addEventListener('click', function() {
+    doAction('/attendance/clock-in', this, document.getElementById('clock-status'));
+});
+document.getElementById('clock-out-btn')?.addEventListener('click', function() {
+    doAction('/attendance/clock-out', this, document.getElementById('clock-status'));
+});
+document.getElementById('break-start-btn')?.addEventListener('click', function() {
+    doAction('/attendance/break-start', this, document.getElementById('clock-status'));
+});
+document.getElementById('break-end-btn')?.addEventListener('click', function() {
+    doAction('/attendance/break-end', this, document.getElementById('clock-status'));
+});
+</script>
+{% endblock %}

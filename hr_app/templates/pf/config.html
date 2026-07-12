@@ -1,0 +1,33 @@
+{% extends "layouts/base.html" %}
+{% block title %}PF Configuration - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Provident Fund Configuration</h1>
+</div>
+<div class="card" style="max-width:500px;">
+    <form method="POST">
+        <div class="form-group">
+            <label>Employee Contribution (%)</label>
+            <input type="number" name="employee_pct" class="form-control" step="0.5" value="{{ config.employee_contribution_pct or 5.0 }}" required>
+        </div>
+        <div class="form-group">
+            <label>Employer Contribution (%)</label>
+            <input type="number" name="employer_pct" class="form-control" step="0.5" value="{{ config.employer_contribution_pct or 5.0 }}" required>
+        </div>
+        <div class="form-group">
+            <label>Max Loan (% of balance)</label>
+            <input type="number" name="max_loan_pct" class="form-control" step="5" value="{{ config.max_loan_percentage or 50.0 }}" required>
+        </div>
+        <div class="form-group">
+            <label>Interest Rate (%)</label>
+            <input type="number" name="interest_rate" class="form-control" step="0.5" value="{{ config.interest_rate or 0.0 }}" required>
+        </div>
+        <div class="form-group">
+            <label>Minimum Service (months) for Loan</label>
+            <input type="number" name="min_months" class="form-control" value="{{ config.min_service_months_for_loan or 12 }}" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Configuration</button>
+        <a href="{{ url_for('pf.index') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

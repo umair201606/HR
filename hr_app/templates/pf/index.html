@@ -1,0 +1,84 @@
+{% extends "layouts/base.html" %}
+{% block title %}Provident Fund - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Provident Fund Management</h1>
+</div>
+
+{% if config %}
+<div class="stats-grid mb-20">
+    <div class="stat-card"><div class="stat-label">Employee Contribution</div><div class="stat-value">{{ config.employee_contribution_pct }}%</div></div>
+    <div class="stat-card"><div class="stat-label">Employer Contribution</div><div class="stat-value">{{ config.employer_contribution_pct }}%</div></div>
+    <div class="stat-card"><div class="stat-label">Max Loan %</div><div class="stat-value">{{ config.max_loan_percentage }}%</div></div>
+    <div class="stat-card"><div class="stat-label">Min Service (Months)</div><div class="stat-value">{{ config.min_service_months_for_loan }}</div></div>
+</div>
+{% endif %}
+
+<div class="card mb-20">
+    <div class="card-header">Recent Contributions</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Employee</th><th>Period</th><th>Employee Amt</th><th>Employer Amt</th><th>Total</th></tr></thead>
+            <tbody>
+                {% for c in contributions %}
+                <tr>
+                    <td>{{ c.user.full_name }}</td>
+                    <td>{{ c.month }}/{{ c.year }}</td>
+                    <td>Rs. {{ c.employee_amount|round|int }}</td>
+                    <td>Rs. {{ c.employer_amount|round|int }}</td>
+                    <td><strong>Rs. {{ c.total_amount|round|int }}</strong></td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No contributions yet</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card mb-20">
+    <div class="card-header">Pending Withdrawal Requests</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Employee</th><th>Amount</th><th>Reason</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for w in withdrawals if w.status == 'pending' %}
+                <tr>
+                    <td>{{ w.user.full_name }}</td>
+                    <td>Rs. {{ w.amount|round|int }}</td>
+                    <td>{{ w.reason[:40] }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('pf.approve_withdrawal', wid=w.id) }}" style="display:inline;">
+                            <button class="btn btn-sm btn-accent">Approve</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No pending withdrawals</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Pending Loan Requests</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Employee</th><th>Amount</th><th>Installments</th><th>Monthly</th><th>Purpose</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for l in loans if l.status == 'pending' %}
+                <tr>
+                    <td>{{ l.user.full_name }}</td>
+                    <td>Rs. {{ l.amount|round|int }}</td>
+                    <td>{{ l.installment_months }}</td>
+                    <td>Rs. {{ l.monthly_installment|round|int }}</td>
+                    <td>{{ l.purpose[:30] }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('pf.approve_loan', lid=l.id) }}" style="display:inline;">
+                            <button class="btn btn-sm btn-accent">Approve</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No pending loans</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

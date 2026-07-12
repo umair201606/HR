@@ -1,0 +1,30 @@
+{% extends "layouts/base.html" %}
+{% block title %}My Salary Slips - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Salary Slips</h1>
+</div>
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Period</th><th>Basic</th><th>Allowances</th><th>Deductions</th><th>Gross</th><th>Net Pay</th><th></th></tr></thead>
+            <tbody>
+                {% for s in slips %}
+                <tr>
+                    <td>{{ s.payroll_run.month }}/{{ s.payroll_run.year }}</td>
+                    <td>Rs. {{ s.basic_salary|round|int }}</td>
+                    <td>Rs. {{ s.allowances|round|int }}</td>
+                    <td>Rs. {{ s.total_deductions|round|int }}</td>
+                    <td>Rs. {{ s.gross_pay|round|int }}</td>
+                    <td><strong>Rs. {{ s.net_pay|round|int }}</strong></td>
+                    <td>
+                        <a href="{{ url_for('compensation.view_slip', sid=s.id) }}" class="btn btn-sm btn-outline">View</a>
+                        <a href="{{ url_for('compensation.download_slip_pdf', sid=s.id) }}" class="btn btn-sm btn-primary">PDF</a>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="7" class="text-center" style="color:#999;">No slips yet</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "layouts/base.html" %}
+{% block title %}Profile - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>My Profile</h1>
+</div>
+<div class="card" style="max-width:700px;">
+    <table>
+        <tr><td style="font-weight:600;width:150px;">Employee Code</td><td>{{ user.employee_code }}</td></tr>
+        <tr><td style="font-weight:600;">Full Name</td><td>{{ user.full_name }}</td></tr>
+        <tr><td style="font-weight:600;">Email</td><td>{{ user.email }}</td></tr>
+        <tr><td style="font-weight:600;">Designation</td><td>{{ user.designation or '-' }}</td></tr>
+        <tr><td style="font-weight:600;">Department</td><td>{{ user.department or '-' }}</td></tr>
+        <tr><td style="font-weight:600;">Phone</td><td>{{ user.phone or '-' }}</td></tr>
+        <tr><td style="font-weight:600;">CNIC</td><td>{{ user.cnic or '-' }}</td></tr>
+        <tr><td style="font-weight:600;">Date of Joining</td><td>{{ user.date_of_joining }}</td></tr>
+        <tr><td style="font-weight:600;">Bank Name</td><td>{{ user.bank_name or '-' }}</td></tr>
+        <tr><td style="font-weight:600;">Account Title</td><td>{{ user.bank_account_title or '-' }}</td></tr>
+        <tr><td style="font-weight:600;">Account Number</td><td>{{ user.bank_account_number or '-' }}</td></tr>
+    </table>
+    <a href="{{ url_for('ess.index') }}" class="btn btn-primary mt-10">Edit Profile</a>
+</div>
+{% endblock %}

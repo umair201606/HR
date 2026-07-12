@@ -1,0 +1,36 @@
+{% extends "layouts/base.html" %}
+{% block title %}Team - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Manager Self-Service</h1>
+</div>
+<div class="stats-grid">
+    <div class="stat-card"><div class="stat-label">Team Members</div><div class="stat-value">{{ direct_reports|length }}</div></div>
+    <div class="stat-card"><div class="stat-label">Pending Leaves</div><div class="stat-value">{{ pending_leaves }}</div></div>
+    <div class="stat-card"><div class="stat-label">Pending Timesheets</div><div class="stat-value">{{ pending_ts }}</div></div>
+    <div class="stat-card"><div class="stat-label">Pending Loans</div><div class="stat-value">{{ pending_loans }}</div></div>
+</div>
+<div class="flex gap-10 mb-20" style="flex-wrap:wrap;">
+    <a href="{{ url_for('mss.approvals') }}" class="btn btn-outline">&#9989; Approvals Inbox</a>
+    <a href="{{ url_for('mss.team') }}" class="btn btn-outline">&#128101; Team Members</a>
+
+</div>
+{% if direct_reports %}
+<div class="card">
+    <div class="card-header">My Direct Reports</div>
+    <div class="grid-4">
+        {% for emp in direct_reports %}
+        <div class="emp-card">
+            <div class="emp-card-header">{{ emp.full_name }}</div>
+            <div class="emp-card-body">
+                <div class="emp-field"><label>Designation</label><div class="val">{{ emp.designation or '-' }}</div></div>
+                <div class="emp-field"><label>Department</label><div class="val">{{ emp.department or '-' }}</div></div>
+                <div class="emp-field"><label>Email</label><div class="val">{{ emp.email }}</div></div>
+                <a href="{{ url_for('mss.evaluate', uid=emp.id) }}" class="btn btn-sm btn-outline" style="margin-top:8px;">Evaluate</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

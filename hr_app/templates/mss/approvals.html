@@ -1,0 +1,134 @@
+{% extends "layouts/base.html" %}
+{% block title %}Approvals Inbox - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Approvals Inbox</h1>
+</div>
+
+<div class="tab-nav mb-20">
+    <button class="tab-btn active" data-tab="leaves">Leave Requests ({{ leave_approvals|length }})</button>
+    <button class="tab-btn" data-tab="timesheets">Timesheets ({{ ts_approvals|length }})</button>
+    <button class="tab-btn" data-tab="loans">Loan Requests ({{ loan_approvals|length }})</button>
+</div>
+
+<div class="tab-content" id="tab-leaves">
+    <div class="card">
+        <div class="card-header">Pending Leave Requests</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Reason</th><th>Action</th></tr></thead>
+                <tbody>
+                    {% for a in leave_approvals %}
+                    <tr>
+                        <td>{{ a.leave_request.user.full_name }}</td>
+                        <td>{{ a.leave_request.leave_type.name }}</td>
+                        <td>{{ a.leave_request.start_date }} to {{ a.leave_request.end_date }}</td>
+                        <td>{{ a.leave_request.total_days }}</td>
+                        <td>{{ a.leave_request.reason[:40] }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('mss.approve_leave', aid=a.id) }}" style="display:inline;">
+                                <input type="hidden" name="action" value="approve">
+                                <button class="btn btn-sm btn-accent">Approve</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('mss.approve_leave', aid=a.id) }}" style="display:inline;">
+                                <input type="hidden" name="action" value="reject">
+                                <input type="text" name="comment" placeholder="Reason" style="width:80px;font-size:11px;padding:2px 4px;" required>
+                                <button class="btn btn-sm btn-danger">Reject</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No pending leaves</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-timesheets">
+    <div class="card">
+        <div class="card-header">
+            <span>Pending Timesheets</span>
+            <button class="btn btn-sm btn-accent" id="bulk-approve-ts">Bulk Approve Selected</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th><input type="checkbox" id="select-all-ts"></th><th>Employee</th><th>Week</th><th>Hours</th><th>Action</th></tr></thead>
+                <tbody>
+                    {% for a in ts_approvals %}
+                    <tr>
+                        <td><input type="checkbox" class="ts-check" value="{{ a.id }}"></td>
+                        <td>{{ a.week.user.full_name }}</td>
+                        <td>{{ a.week.week_start }} to {{ a.week.week_end }}</td>
+                        <td>{{ a.week.total_hours }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('mss.approve_timesheet', aid=a.id) }}" style="display:inline;">
+                                <input type="hidden" name="action" value="approve">
+                                <button class="btn btn-sm btn-accent">Approve</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('mss.approve_timesheet', aid=a.id) }}" style="display:inline;">
+                                <input type="hidden" name="action" value="reject">
+                                <input type="text" name="comment" placeholder="Reason" style="width:80px;font-size:11px;padding:2px 4px;" required>
+                                <button class="btn btn-sm btn-danger">Reject</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No pending timesheets</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-loans">
+    <div class="card">
+        <div class="card-header">Pending Loan Requests</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Employee</th><th>Type</th><th>Amount</th><th>Installments</th><th>Purpose</th><th>Action</th></tr></thead>
+                <tbody>
+                    {% for l in loan_approvals %}
+                    <tr>
+                        <td>{{ l.user.full_name }}</td>
+                        <td>{{ l.request_type }}</td>
+                        <td>Rs. {{ l.amount|round|int }}</td>
+                        <td>{{ l.installment_months }}</td>
+                        <td>{{ l.purpose[:40] }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('mss.approve_loan', lid=l.id) }}" style="display:inline;">
+                                <input type="hidden" name="action" value="approve">
+                                <button class="btn btn-sm btn-accent">Approve</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('mss.approve_loan', lid=l.id) }}" style="display:inline;">
+                                <input type="hidden" name="action" value="reject">
+                                <button class="btn btn-sm btn-danger">Reject</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No pending loans</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.getElementById('tab-' + this.dataset.tab).classList.remove('hidden');
+    });
+});
+document.getElementById('select-all-ts')?.addEventListener('change', function() {
+    document.querySelectorAll('.ts-check').forEach(c => c.checked = this.checked);
+});
+document.getElementById('bulk-approve-ts')?.addEventListener('click', async function() {
+    const ids = [...document.querySelectorAll('.ts-check:checked')].map(c => c.value);
+    if (ids.length === 0) { alert('Select timesheets first.'); return; }
+    await fetch('/mss/bulk-approve-timesheets', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ids}) });
+    location.reload();
+});
+</script>
+{% endblock %}

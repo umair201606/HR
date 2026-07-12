@@ -1,0 +1,35 @@
+{% extends "layouts/base.html" %}
+{% block title %}Change Requests - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Pending Change Requests</h1>
+</div>
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Employee</th><th>Field</th><th>Old</th><th>New</th><th>Action</th></tr></thead>
+            <tbody>
+                {% for cr in requests %}
+                <tr>
+                    <td>{{ cr.user.full_name }}</td>
+                    <td>{{ cr.field_name }}</td>
+                    <td>{{ cr.old_value[:30] if cr.old_value else '-' }}</td>
+                    <td>{{ cr.new_value[:30] }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('ess.review_change', cid=cr.id) }}" style="display:flex;gap:4px;flex-wrap:wrap;">
+                            <input type="hidden" name="action" value="approve">
+                            <button class="btn btn-sm btn-accent">Approve</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('ess.review_change', cid=cr.id) }}" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">
+                            <input type="hidden" name="action" value="reject">
+                            <input type="text" name="notes" placeholder="Notes" class="form-control" style="width:100px;font-size:11px;">
+                            <button class="btn btn-sm btn-danger">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No pending requests</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

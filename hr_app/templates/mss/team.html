@@ -1,0 +1,28 @@
+{% extends "layouts/base.html" %}
+{% block title %}My Team - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>My Team</h1>
+</div>
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Name</th><th>Designation</th><th>Department</th><th>Email</th><th>Phone</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for m in members %}
+                <tr>
+                    <td>{{ m.full_name }}</td>
+                    <td>{{ m.designation or '-' }}</td>
+                    <td>{{ m.department or '-' }}</td>
+                    <td>{{ m.email }}</td>
+                    <td>{{ m.phone or '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('mss.evaluate', uid=m.id) }}" class="btn btn-sm btn-outline">Evaluate</a>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No team members</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

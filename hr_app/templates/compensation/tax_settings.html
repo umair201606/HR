@@ -1,0 +1,52 @@
+{% extends "layouts/base.html" %}
+{% block title %}Income Tax Settings - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Income Tax Configuration</h1>
+    <form method="POST" style="display:inline;">
+        <input type="hidden" name="action" value="seed_defaults">
+        <button class="btn btn-outline">Seed Default Slabs</button>
+    </form>
+</div>
+<div class="card mb-20">
+    <div class="card-header">Add Tax Slab</div>
+    <form method="POST" style="padding:12px;">
+        <input type="hidden" name="action" value="add">
+        <div class="form-row">
+            <div class="form-group"><label>Min Annual Income (Rs.)</label><input type="number" name="min_income" class="form-control" required step="0.01"></div>
+            <div class="form-group"><label>Max Annual Income (Rs.)</label><input type="number" name="max_income" class="form-control" required step="0.01"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Rate (%)</label><input type="number" name="rate_pct" class="form-control" required step="0.01"></div>
+            <div class="form-group"><label>Fixed Amount (Rs.)</label><input type="number" name="fixed_amount" class="form-control" step="0.01" value="0"></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Add Slab</button>
+    </form>
+</div>
+<div class="card">
+    <div class="card-header">Current Slabs</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Min (Rs.)</th><th>Max (Rs.)</th><th>Rate (%)</th><th>Fixed (Rs.)</th><th>Active</th><th></th></tr></thead>
+            <tbody>
+                {% for s in slabs %}
+                <tr>
+                    <td>Rs. {{ s.min_income|round|int }}</td>
+                    <td>Rs. {{ s.max_income|round|int }}</td>
+                    <td>{{ s.rate_pct }}%</td>
+                    <td>Rs. {{ s.fixed_amount|round|int }}</td>
+                    <td><span class="badge badge-{{ 'success' if s.is_active else 'default' }}">{{ 'Active' if s.is_active else 'Inactive' }}</span></td>
+                    <td>
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="slab_id" value="{{ s.id }}">
+                            <button class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No slabs configured</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

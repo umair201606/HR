@@ -1,0 +1,99 @@
+{% extends "layouts/base.html" %}
+{% block title %}Run Payroll - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Run Monthly Payroll</h1>
+</div>
+<form method="POST" id="payroll-form">
+    <div class="card mb-20">
+        <div class="card-header">Period</div>
+        <div class="form-row" style="padding:12px;">
+            <div class="form-group"><label>Month</label>
+                <select name="month" class="form-control">
+                    {% for m in range(1,13) %}<option value="{{ m }}" {{ 'selected' if m == 7 }}>{{ m }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-group"><label>Year</label>
+                <select name="year" class="form-control">
+                    {% for y in range(2024, 2028) %}<option value="{{ y }}" {{ 'selected' if y == 2026 }}>{{ y }}</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="card mb-20">
+        <div class="card-header">Per-Employee Adjustments</div>
+        <p style="font-size:12px;color:#888;padding:0 12px 12px;">Adjust deductions, income tax, and loan installments for each employee before running payroll.</p>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Basic (Rs.)</th>
+                        <th>Income Tax (Rs.)</th>
+                        <th>Loan Deduction (Rs.)</th>
+                        <th>Additional Deduction (Rs.)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ed in employees %}
+                    {% set pp = ed.profile %}
+                    <tr>
+                        <td><strong>{{ pp.user.full_name }}</strong><br><span style="font-size:11px;color:#888;">{{ pp.user.designation or '' }}</span></td>
+                        <td>Rs. {{ pp.basic_salary|round|int }}</td>
+                        <td><input name="tax_{{ pp.user_id }}" class="form-control" style="width:100px;" placeholder="Auto" step="0.01"></td>
+                        <td>
+                            {% if ed.loans %}
+                            {% for loan in ed.loans %}
+                            <div style="font-size:11px;margin-bottom:2px;">
+                                {{ loan.request_type|title }} (Bal: Rs.{{ loan.remaining_amount|round|int }})
+                                <input name="loan_{{ loan.id }}" class="form-control" style="width:80px;display:inline;" placeholder="{{ loan.monthly_installment|round|int }}" step="0.01">
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <span style="color:#999;">No active loans</span>
+                            {% endif %}
+                        </td>
+                        <td><input name="custom_{{ pp.user_id }}" class="form-control" style="width:100px;" placeholder="0" step="0.01"></td>
+                    </tr>
+                    {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No payroll profiles</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <input type="hidden" name="adjustments" id="adjustments-json" value="{}">
+    <button type="submit" class="btn btn-accent">&#9889; Run Payroll</button>
+    <a href="{{ url_for('compensation.index') }}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+document.getElementById('payroll-form')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const adjustments = {};
+    document.querySelectorAll('[name^="tax_"]').forEach(el => {
+        const uid = el.name.replace('tax_', '');
+        if (el.value) {
+            if (!adjustments[uid]) adjustments[uid] = {};
+            adjustments[uid]['income_tax'] = el.value;
+        }
+    });
+    document.querySelectorAll('[name^="loan_"]').forEach(el => {
+        const lid = el.name.replace('loan_', '');
+        const uid = el.closest('tr').querySelector('[name^="tax_"]')?.name.replace('tax_', '');
+        if (uid && el.value) {
+            if (!adjustments[uid]) adjustments[uid] = {};
+            adjustments[uid]['loan_' + lid] = el.value;
+        }
+    });
+    document.querySelectorAll('[name^="custom_"]').forEach(el => {
+        const uid = el.name.replace('custom_', '');
+        if (el.value) {
+            if (!adjustments[uid]) adjustments[uid] = {};
+            adjustments[uid]['custom_deduction'] = el.value;
+        }
+    });
+    document.getElementById('adjustments-json').value = JSON.stringify(adjustments);
+    this.submit();
+});
+</script>
+{% endblock %}

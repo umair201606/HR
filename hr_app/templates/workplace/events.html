@@ -1,0 +1,56 @@
+{% extends "layouts/base.html" %}
+{% block title %}Events - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Team Calendar</h1>
+    <button class="btn btn-primary" id="show-event-form">+ New Event</button>
+</div>
+<div id="event-form" class="card hidden mb-20" style="max-width:500px;">
+    <form method="POST" action="{{ url_for('workplace.create_event') }}">
+        <div class="form-group"><label>Title</label><input type="text" name="title" class="form-control" required></div>
+        <div class="form-row">
+            <div class="form-group"><label>Date</label><input type="date" name="event_date" class="form-control" required></div>
+            <div class="form-group"><label>Type</label>
+                <select name="event_type" class="form-control">
+                    <option value="meeting">Meeting</option>
+                    <option value="workshop">Workshop</option>
+                    <option value="social">Social</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Start Time</label><input type="time" name="start_time" class="form-control"></div>
+            <div class="form-group"><label>End Time</label><input type="time" name="end_time" class="form-control"></div>
+        </div>
+        <div class="form-group"><label>Location</label><input type="text" name="location" class="form-control"></div>
+        <button type="submit" class="btn btn-primary">Create Event</button>
+    </form>
+</div>
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Date</th><th>Title</th><th>Type</th><th>Time</th><th>Location</th><th>Created By</th></tr></thead>
+            <tbody>
+                {% for e in events %}
+                <tr>
+                    <td>{{ e.event_date }}</td>
+                    <td>{{ e.title }}</td>
+                    <td><span class="badge badge-info">{{ e.event_type }}</span></td>
+                    <td>{% if e.start_time %}{{ e.start_time.strftime('%H:%M') }}{% endif %}{% if e.end_time %} - {{ e.end_time.strftime('%H:%M') }}{% endif %}</td>
+                    <td>{{ e.location or '-' }}</td>
+                    <td>{{ e.creator.full_name }}</td>
+                </tr>
+                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No events</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+document.getElementById('show-event-form')?.addEventListener('click', () => {
+    document.getElementById('event-form').classList.toggle('hidden');
+});
+</script>
+{% endblock %}

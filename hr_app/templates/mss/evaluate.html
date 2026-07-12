@@ -1,0 +1,36 @@
+{% extends "layouts/base.html" %}
+{% block title %}Evaluate - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Performance Evaluation: {{ employee.full_name }}</h1>
+</div>
+<div class="grid-2">
+    <div class="card">
+        <div class="card-header">Employee Details</div>
+        <table>
+            <tr><td style="font-weight:600;">Designation</td><td>{{ employee.designation or '-' }}</td></tr>
+            <tr><td style="font-weight:600;">Department</td><td>{{ employee.department or '-' }}</td></tr>
+            <tr><td style="font-weight:600;">Date of Joining</td><td>{{ employee.date_of_joining }}</td></tr>
+        </table>
+    </div>
+    <div class="card">
+        <div class="card-header">Salary Revision</div>
+        <form method="POST">
+            <div class="form-group">
+                <label>Current Basic Salary</label>
+                <input type="text" class="form-control" value="{{ employee.payroll_profile.basic_salary if employee.payroll_profile else 'Not set' }}" disabled>
+            </div>
+            <div class="form-group">
+                <label>New Basic Salary</label>
+                <input type="number" name="new_basic" class="form-control" step="1000" required placeholder="Enter new salary">
+            </div>
+            <div class="form-group">
+                <label>Reason / Notes</label>
+                <textarea name="reason" class="form-control form-textarea" placeholder="Evaluation notes..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit Revision</button>
+            <a href="{{ url_for('mss.index') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

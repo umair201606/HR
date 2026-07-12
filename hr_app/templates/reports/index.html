@@ -1,0 +1,209 @@
+{% extends "layouts/base.html" %}
+{% block title %}Reports & Analytics - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Reports & Analytics</h1>
+</div>
+
+<div class="card mb-20">
+    <div class="card-header">Ad-Hoc Report Builder</div>
+    <div class="report-builder" style="padding:16px;">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Scope</label>
+                <select id="report-scope" class="form-control">
+                    <option value="company">Company-Wide</option>
+                    <option value="department">Department</option>
+                    <option value="individual">Individual Employee</option>
+                </select>
+            </div>
+            <div class="form-group hidden" id="dept-group">
+                <label>Department</label>
+                <select id="report-dept" class="form-control">
+                    <option value="Engineering">Engineering</option>
+                    <option value="Human Resources">HR</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Marketing">Marketing</option>
+                </select>
+            </div>
+            <div class="form-group hidden" id="emp-group">
+                <label>Employee</label>
+                <select id="report-emp" class="form-control">
+                    {% for u in employees %}
+                    <option value="{{ u.id }}">{{ u.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>From</label><input type="date" id="report-from" class="form-control"></div>
+            <div class="form-group"><label>To</label><input type="date" id="report-to" class="form-control"></div>
+        </div>
+        <div class="form-group">
+            <label>Columns</label>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                {% set cols = [('employee','Employee'), ('total_hours','Total Hours'), ('overtime','Overtime'), ('leaves','Leaves'), ('sick_days','Sick Days'), ('late_days','Late Days'), ('present_days','Days Present'), ('pf_balance','PF Balance'), ('loan_balance','Loan Balance')] %}
+                {% for key, label in cols %}
+                <label style="font-size:13px;display:flex;align-items:center;gap:4px;background:#f0f0f0;padding:4px 8px;border-radius:4px;">
+                    <input type="checkbox" class="col-check" value="{{ key }}" checked> {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        <button class="btn btn-primary" id="run-report">&#9654; Generate Report</button>
+        <button class="btn btn-accent hidden" id="export-excel">&#128196; Export to Excel</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span>Results</span>
+        <span id="result-count" style="font-size:12px;color:#888;"></span>
+    </div>
+    <div class="table-wrap" id="report-results">
+        <p style="padding:20px;color:#999;text-align:center;">Run a report to see results</p>
+    </div>
+</div>
+
+<div class="grid-3 mt-20">
+    <div class="card">
+        <div class="card-header">Attendance Report</div>
+        <p style="font-size:13px;color:#666;margin-bottom:14px;">Download monthly attendance records as CSV.</p>
+        <form method="GET" action="{{ url_for('reports.export_attendance') }}">
+            <div class="form-row">
+                <div class="form-group"><label>Month</label>
+                    <select name="month" class="form-control">
+                        {% for m in range(1,13) %}<option value="{{ m }}" {{ 'selected' if m == 7 }}>{{ m }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-group"><label>Year</label>
+                    <select name="year" class="form-control">
+                        {% for y in range(2024, 2028) %}<option value="{{ y }}" {{ 'selected' if y == 2026 }}>{{ y }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-outline">Download CSV</button>
+        </form>
+    </div>
+    <div class="card">
+        <div class="card-header">Leave Report</div>
+        <p style="font-size:13px;color:#666;margin-bottom:14px;">Download annual leave records as CSV.</p>
+        <form method="GET" action="{{ url_for('reports.export_leaves') }}">
+            <div class="form-group"><label>Year</label>
+                <select name="year" class="form-control">
+                    {% for y in range(2024, 2028) %}<option value="{{ y }}" {{ 'selected' if y == 2026 }}>{{ y }}</option>{% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-outline">Download CSV</button>
+        </form>
+    </div>
+    <div class="card">
+        <div class="card-header">Dashboard Analytics</div>
+        <p style="font-size:13px;color:#666;margin-bottom:14px;">View attendance trends and metrics.</p>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline">View Dashboard</a>
+    </div>
+</div>
+
+<div class="card mt-20">
+    <div class="card-header">Monthly Attendance Overview</div>
+    <div style="height:250px;display:flex;align-items:flex-end;gap:8px;padding:16px 0;" id="chart-container"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('report-scope')?.addEventListener('change', function() {
+    document.getElementById('dept-group').classList.toggle('hidden', this.value !== 'department');
+    document.getElementById('emp-group').classList.toggle('hidden', this.value !== 'individual');
+});
+
+let lastResults = [];
+let lastColumns = [];
+
+document.getElementById('run-report')?.addEventListener('click', async function() {
+    const scope = document.getElementById('report-scope').value;
+    const columns = [...document.querySelectorAll('.col-check:checked')].map(c => c.value);
+    lastColumns = columns;
+    const payload = {
+        scope,
+        columns,
+        date_from: document.getElementById('report-from').value || null,
+        date_to: document.getElementById('report-to').value || null,
+        user_id: scope === 'individual' ? parseInt(document.getElementById('report-emp').value) : null,
+        department: scope === 'department' ? document.getElementById('report-dept').value : null,
+    };
+    this.disabled = true;
+    this.textContent = 'Generating...';
+    try {
+        const r = await fetch('/reports/query', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const d = await r.json();
+        lastResults = d.results || [];
+        renderTable(lastResults, columns);
+        document.getElementById('result-count').textContent = `${lastResults.length} row(s)`;
+        document.getElementById('export-excel').classList.remove('hidden');
+    } catch(e) { alert('Error: ' + e.message); }
+    this.disabled = false;
+    this.innerHTML = '&#9654; Generate Report';
+});
+
+function renderTable(rows, columns) {
+    const container = document.getElementById('report-results');
+    if (rows.length === 0) {
+        container.innerHTML = '<p style="padding:20px;color:#999;text-align:center;">No results</p>';
+        return;
+    }
+    const labels = {employee:'Employee', department:'Department', total_hours:'Total Hours', overtime:'Overtime', leaves:'Leaves', sick_days:'Sick Days', late_days:'Late Days', present_days:'Days Present', pf_balance:'PF Balance', loan_balance:'Loan Balance'};
+    let html = '<table><thead><tr>';
+    columns.forEach(c => { html += `<th>${labels[c] || c}</th>`; });
+    html += '</tr></thead><tbody>';
+    rows.forEach(r => {
+        html += '<tr>';
+        columns.forEach(c => { html += `<td>${r[c] !== undefined && r[c] !== null ? r[c] : '-'}</td>`; });
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+document.getElementById('export-excel')?.addEventListener('click', async function() {
+    if (lastResults.length === 0) return;
+    const r = await fetch('/reports/export-excel', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({rows: lastResults, columns: lastColumns})
+    });
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `hr_report_${new Date().toISOString().slice(0,10)}.xlsx`;
+    a.click();
+});
+
+(async function() {
+    try {
+        const r = await fetch('/reports/attendance-chart?year=2026');
+        const data = await r.json();
+        const container = document.getElementById('chart-container');
+        container.innerHTML = '';
+        const max = Math.max(...data.map(d => d.total), 1);
+        data.forEach(m => {
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;';
+            const bar = document.createElement('div');
+            bar.style.cssText = `width:100%;background:#1a237e;border-radius:4px 4px 0 0;height:${(m.total/max)*200}px;min-height:4px;position:relative;`;
+            const tooltip = document.createElement('div');
+            tooltip.style.cssText = 'position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:10px;color:#1a237e;font-weight:600;white-space:nowrap;';
+            tooltip.textContent = `${m.total} (L:${m.late})`;
+            bar.appendChild(tooltip);
+            wrapper.appendChild(bar);
+            const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const label = document.createElement('div');
+            label.style.cssText = 'font-size:9px;color:#888;margin-top:4px;';
+            label.textContent = months[m.month];
+            wrapper.appendChild(label);
+            container.appendChild(wrapper);
+        });
+    } catch(e) {}
+})();
+</script>
+{% endblock %}

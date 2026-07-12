@@ -1,0 +1,82 @@
+{% extends "layouts/base.html" %}
+{% block title %}All Attendance - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>All Attendance Records</h1>
+    <form method="GET" style="display:flex;gap:8px;">
+        <select name="month" class="form-control" style="width:auto;">
+            {% for m in range(1,13) %}<option value="{{ m }}" {{ 'selected' if m == month }}>{{ m }}</option>{% endfor %}
+        </select>
+        <select name="year" class="form-control" style="width:auto;">
+            {% for y in range(2024, 2028) %}<option value="{{ y }}" {{ 'selected' if y == year }}>{{ y }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-outline">Filter</button>
+    </form>
+</div>
+<div class="card mb-20">
+    <div class="card-header">Attendance</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Date</th><th>Employee</th><th>Clock In</th><th>Clock Out</th><th>Status</th><th>Late</th><th>Correct</th></tr></thead>
+            <tbody>
+                {% for r in records %}
+                <tr>
+                    <td>{{ r.date }}</td>
+                    <td>{{ r.user.full_name }}</td>
+                    <td>{{ r.clock_in.strftime('%H:%M:%S') if r.clock_in else '-' }}</td>
+                    <td>{{ r.clock_out.strftime('%H:%M:%S') if r.clock_out else '-' }}</td>
+                    <td><span class="badge badge-{{ 'success' if r.status == 'present' else 'warning' }}">{{ r.status }}</span></td>
+                    <td>{% if r.is_late %}&#10060;{% else %}&#10004;{% endif %}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline correct-btn" data-id="{{ r.id }}">Edit</button>
+                        <div class="correct-form hidden" data-att="{{ r.id }}" style="display:none;">
+                            <form method="POST" action="{{ url_for('attendance.correct') }}" style="display:flex;gap:4px;flex-wrap:wrap;">
+                                <input type="hidden" name="attendance_id" value="{{ r.id }}">
+                                <select name="field" class="form-control" style="width:80px;font-size:11px;">
+                                    <option value="clock_in">Clock In</option>
+                                    <option value="clock_out">Clock Out</option>
+                                    <option value="status">Status</option>
+                                </select>
+                                <input name="new_value" class="form-control" style="width:100px;font-size:11px;" placeholder="New value">
+                                <input name="reason" class="form-control" style="width:100px;font-size:11px;" placeholder="Reason *" required>
+                                <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="7" class="text-center" style="color:#999;">No records</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="card">
+    <div class="card-header">Correction Audit Log</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Date</th><th>Corrected By</th><th>Field</th><th>Old Value</th><th>New Value</th><th>Reason</th></tr></thead>
+            <tbody>
+                {% for c in corrections %}
+                <tr>
+                    <td>{{ c.corrected_at.strftime('%d-%b-%Y %H:%M') }}</td>
+                    <td>{{ c.corrector.full_name }}</td>
+                    <td>{{ c.field }}</td>
+                    <td>{{ c.old_value }}</td>
+                    <td>{{ c.new_value }}</td>
+                    <td>{{ c.reason[:40] }}</td>
+                </tr>
+                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No corrections</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+document.querySelectorAll('.correct-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        this.nextElementSibling.classList.toggle('hidden');
+        this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

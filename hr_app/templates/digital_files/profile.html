@@ -1,0 +1,99 @@
+{% extends "layouts/base.html" %}
+{% block title %}Employee Profile - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Digital Personnel File</h1>
+    <p class="subtitle">{{ emp.full_name }} ({{ emp.employee_code }})</p>
+</div>
+<div class="tab-nav mb-20">
+    <button class="tab-btn active" data-tab="core">HR Core</button>
+    <button class="tab-btn" data-tab="docs">Documents</button>
+    <button class="tab-btn" data-tab="operations">Operations</button>
+    <button class="tab-btn" data-tab="finance">Finance</button>
+    <button class="tab-btn" data-tab="performance">Performance</button>
+</div>
+
+<div class="tab-content" id="tab-core">
+    <div class="card">
+        <div class="card-header">Personal Information</div>
+        <table>
+            <tr><td style="font-weight:600;width:180px;">Full Name</td><td>{{ emp.full_name }}</td></tr>
+            <tr><td style="font-weight:600;">Employee Code</td><td>{{ emp.employee_code }}</td></tr>
+            <tr><td style="font-weight:600;">Email</td><td>{{ emp.email }}</td></tr>
+            <tr><td style="font-weight:600;">Designation</td><td>{{ emp.designation or '-' }}</td></tr>
+            <tr><td style="font-weight:600;">Department</td><td>{{ emp.department or '-' }}</td></tr>
+            <tr><td style="font-weight:600;">Manager</td><td>{{ emp.manager.full_name if emp.manager else '-' }}</td></tr>
+            <tr><td style="font-weight:600;">Date of Joining</td><td>{{ emp.date_of_joining }}</td></tr>
+            <tr><td style="font-weight:600;">Phone</td><td>{{ emp.phone or '-' }}</td></tr>
+            <tr><td style="font-weight:600;">CNIC</td><td>{{ emp.cnic or '-' }}</td></tr>
+            <tr><td style="font-weight:600;">Address</td><td>{{ emp.address or '-' }}</td></tr>
+        </table>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-docs">
+    <div class="card">
+        <div class="card-header">Documents ({{ files|length }})</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Title</th><th>Category</th><th>File</th><th>Expiry</th><th>Verified</th><th></th></tr></thead>
+                <tbody>
+                    {% for f in files %}
+                    <tr>
+                        <td>{{ f.title }}</td>
+                        <td>{{ f.category.name if f.category else '-' }}</td>
+                        <td>{{ f.original_name }}</td>
+                        <td>{{ f.expiry_date or '-' }}</td>
+                        <td>{{ 'Yes' if f.is_verified else 'No' }}</td>
+                        <td><a href="{{ url_for('digital_files.download', fid=f.id) }}" class="btn btn-sm btn-outline">Download</a></td>
+                    </tr>
+                    {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No documents</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-operations">
+    <div class="card">
+        <div class="card-header">Attendance & Timesheets</div>
+        <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+            <div class="stat-card"><div class="stat-label">Attendance Records</div><div class="stat-value">{{ attendance_count }}</div></div>
+            <div class="stat-card"><div class="stat-label">Approved Timesheets</div><div class="stat-value">{{ timesheet_count }}</div></div>
+        </div>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-finance">
+    <div class="card">
+        <div class="card-header">Payroll & Banking</div>
+        <div class="stats-grid" style="grid-template-columns:repeat(2,1fr);">
+            <div class="stat-card"><div class="stat-label">Salary Slips</div><div class="stat-value">{{ slip_count }}</div></div>
+        </div>
+        <table>
+            <tr><td style="font-weight:600;">Bank Name</td><td>{{ emp.bank_name or '-' }}</td></tr>
+            <tr><td style="font-weight:600;">Account Title</td><td>{{ emp.bank_account_title or '-' }}</td></tr>
+            <tr><td style="font-weight:600;">Account Number</td><td>{{ emp.bank_account_number or '-' }}</td></tr>
+        </table>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-performance">
+    <div class="card">
+        <div class="card-header">Performance Reviews</div>
+        <div class="stat-card"><div class="stat-label">Reviews Completed</div><div class="stat-value">{{ review_count }}</div></div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.getElementById('tab-' + this.dataset.tab).classList.remove('hidden');
+    });
+});
+</script>
+{% endblock %}

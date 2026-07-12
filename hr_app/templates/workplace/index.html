@@ -1,0 +1,74 @@
+{% extends "layouts/base.html" %}
+{% block title %}Workplace - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Modern Workplace</h1>
+</div>
+
+<div class="grid-3 mb-20">
+    <a href="{{ url_for('workplace.announcements') }}" class="btn btn-outline btn-block">&#128240; Announcements</a>
+    <a href="{{ url_for('workplace.events') }}" class="btn btn-outline btn-block">&#128197; Team Calendar</a>
+    <a href="{{ url_for('workplace.kanban') }}" class="btn btn-outline btn-block">&#128203; Task Board</a>
+</div>
+
+<div class="card mb-20">
+    <div class="card-header flex-between">
+        <span>Latest Announcements</span>
+        {% if current_user.has_permission('workplace', 'write') %}
+        <button class="btn btn-sm btn-primary" id="show-ann-form">+ New</button>
+        {% endif %}
+    </div>
+    <div id="ann-form" class="hidden" style="margin-bottom:14px;padding:14px;background:#f8f9fa;border-radius:6px;">
+        <form method="POST" action="{{ url_for('workplace.create_announcement') }}">
+            <div class="form-group"><input type="text" name="title" class="form-control" placeholder="Title" required></div>
+            <div class="form-group"><textarea name="content" class="form-control form-textarea" placeholder="Content" required></textarea></div>
+            <div class="form-group">
+                <select name="priority" class="form-control" style="width:auto;">
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Publish</button>
+        </form>
+    </div>
+    {% for a in announcements[:5] %}
+    <div style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
+        <div class="flex-between">
+            <strong style="font-size:13px;">{{ a.title }}</strong>
+            <span class="badge badge-{{ 'danger' if a.priority == 'urgent' else 'warning' if a.priority == 'high' else 'info' }}">{{ a.priority }}</span>
+        </div>
+        <p style="font-size:12px;color:#666;margin-top:4px;">{{ a.content[:150] }}{% if a.content|length > 150 %}...{% endif %}</p>
+        <div style="font-size:11px;color:#999;margin-top:4px;">{{ a.author.full_name }} &middot; {{ a.created_at.strftime('%d-%b-%Y') }}</div>
+    </div>
+    {% else %}
+    <p style="color:#999;font-size:13px;">No announcements</p>
+    {% endfor %}
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <div class="card-header">Upcoming Events</div>
+        {% for e in events %}
+        <div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+            <strong style="font-size:13px;">{{ e.title }}</strong>
+            <div style="font-size:12px;color:#666;">{{ e.event_date }} {% if e.location %} &middot; {{ e.location }}{% endif %}</div>
+        </div>
+        {% else %}<p style="color:#999;font-size:13px;">No upcoming events</p>{% endfor %}
+    </div>
+    <div class="card">
+        <div class="card-header">Task Boards</div>
+        {% for b in boards %}
+        <a href="{{ url_for('workplace.kanban') }}?board={{ b.id }}" style="display:block;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">{{ b.title }}</a>
+        {% else %}<p style="color:#999;font-size:13px;">No boards yet</p>{% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('show-ann-form')?.addEventListener('click', () => {
+    document.getElementById('ann-form').classList.toggle('hidden');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "layouts/base.html" %}
+{% block title %}My Profile - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Employee Self-Service</h1>
+    <p class="subtitle">{{ user.full_name }} ({{ user.employee_code }})</p>
+</div>
+
+<div class="tab-nav mb-20">
+    <button class="tab-btn active" data-tab="profile">Profile</button>
+    <button class="tab-btn" data-tab="leaves">Leave Balances</button>
+    <button class="tab-btn" data-tab="loans">Loans</button>
+    <button class="tab-btn" data-tab="slips">Salary Slips</button>
+    <button class="tab-btn" data-tab="performance">Performance</button>
+</div>
+
+<div class="tab-content" id="tab-profile">
+    <div class="card mb-20">
+        <div class="card-header">Personal Information</div>
+        <form method="POST" action="{{ url_for('ess.update_profile') }}">
+            <div class="grid-2" style="padding:12px;">
+                <div class="form-group"><label>Phone</label><input name="phone" class="form-control" value="{{ user.phone or '' }}"></div>
+                <div class="form-group"><label>Emergency Contact</label><input name="emergency_contact" class="form-control" value="{{ user.emergency_contact or '' }}"></div>
+                <div class="form-group"><label>Emergency Phone</label><input name="emergency_phone" class="form-control" value="{{ user.emergency_phone or '' }}"></div>
+                <div class="form-group"><label>Address</label><textarea name="address" class="form-control form-textarea">{{ user.address or '' }}</textarea></div>
+            </div>
+            <div class="card-header">Bank Details (Requires HR Approval)</div>
+            <div class="grid-2" style="padding:12px;">
+                <div class="form-group"><label>Bank Name</label><input name="bank_name" class="form-control" value="{{ user.bank_name or '' }}"></div>
+                <div class="form-group"><label>Account Title</label><input name="bank_account_title" class="form-control" value="{{ user.bank_account_title or '' }}"></div>
+                <div class="form-group"><label>Account Number</label><input name="bank_account_number" class="form-control" value="{{ user.bank_account_number or '' }}"></div>
+            </div>
+            <div style="padding:12px;">
+                <button type="submit" class="btn btn-primary">Submit Changes for Review</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-leaves">
+    <div class="card">
+        <div class="card-header">Leave Balances</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Leave Type</th><th>Total</th><th>Used</th><th>Pending</th><th>Remaining</th></tr></thead>
+                <tbody>
+                    {% for q in quotas %}
+                    <tr>
+                        <td>{{ q.leave_type.name }}</td>
+                        <td>{{ q.total }}</td>
+                        <td>{{ q.used }}</td>
+                        <td>{{ q.pending }}</td>
+                        <td><strong>{{ q.remaining }}</strong></td>
+                    </tr>
+                    {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No quotas</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-loans">
+    <div class="card">
+        <div class="card-header">Loan Requests</div>
+        <a href="{{ url_for('ess.loans') }}" class="btn btn-sm btn-outline" style="margin:12px;">Manage Loans</a>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Type</th><th>Amount</th><th>Status</th><th>Remaining</th></tr></thead>
+                <tbody>
+                    {% for l in loan_requests[:5] %}
+                    <tr>
+                        <td>{{ l.request_type|title }}</td>
+                        <td>Rs. {{ l.amount|round|int }}</td>
+                        <td><span class="badge badge-{{ 'success' if l.status == 'approved' else 'warning' if l.status == 'pending' else 'danger' }}">{{ l.status }}</span></td>
+                        <td>Rs. {{ (l.remaining_amount or 0)|round|int }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No loan requests</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-slips">
+    <div class="card">
+        <div class="card-header">Salary Slips</div>
+        <a href="{{ url_for('ess.slips') }}" class="btn btn-sm btn-outline" style="margin:12px;">View All Slips</a>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Period</th><th>Net Pay</th><th></th></tr></thead>
+                <tbody>
+                    {% for s in slips[:6] %}
+                    <tr>
+                        <td>{{ s.payroll_run.month }}/{{ s.payroll_run.year }}</td>
+                        <td><strong>Rs. {{ s.net_pay|round|int }}</strong></td>
+                        <td><a href="{{ url_for('compensation.download_slip_pdf', sid=s.id) }}" class="btn btn-sm btn-primary">PDF</a></td>
+                    </tr>
+                    {% else %}<tr><td colspan="3" class="text-center" style="color:#999;">No slips</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-performance">
+    <div class="card">
+        <div class="card-header">Performance Reviews</div>
+        <a href="{{ url_for('ess.performance') }}" class="btn btn-sm btn-outline" style="margin:12px;">View All</a>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Period</th><th>Score</th><th>Feedback</th></tr></thead>
+                <tbody>
+                    {% for r in reviews[:5] %}
+                    <tr>
+                        <td>{{ r.review_period }}</td>
+                        <td>{{ r.overall_score or '-' }}</td>
+                        <td>{{ r.feedback[:60] if r.feedback else '-' }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="3" class="text-center" style="color:#999;">No reviews</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.getElementById('tab-' + this.dataset.tab).classList.remove('hidden');
+    });
+});
+</script>
+{% endblock %}

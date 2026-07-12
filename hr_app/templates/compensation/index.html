@@ -1,0 +1,139 @@
+{% extends "layouts/base.html" %}
+{% block title %}Compensation - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Compensation & Benefits</h1>
+    {% if current_user.is_admin() %}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <a href="{{ url_for('compensation.run_payroll') }}" class="btn btn-accent">&#9889; Run Payroll</a>
+        <a href="{{ url_for('compensation.tax_settings') }}" class="btn btn-outline">&#128202; Income Tax</a>
+        <a href="{{ url_for('compensation.create_profile') }}" class="btn btn-primary">+ New Profile</a>
+    </div>
+    {% endif %}
+</div>
+
+{% if current_user.is_admin() %}
+<div class="tab-nav mb-20">
+    <button class="tab-btn active" data-tab="profiles">Payroll Profiles</button>
+    <button class="tab-btn" data-tab="history">Payroll History</button>
+    <button class="tab-btn" data-tab="tax">Income Tax Slabs</button>
+</div>
+
+<div class="tab-content" id="tab-profiles">
+    <div class="card">
+        <div class="card-header">Payroll Profiles</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Employee</th><th>Basic Salary</th><th>Effective</th><th>Components</th><th></th></tr></thead>
+                <tbody>
+                    {% for p in profiles %}
+                    <tr>
+                        <td>{{ p.user.full_name }}</td>
+                        <td>Rs. {{ p.basic_salary|round|int }}</td>
+                        <td>{{ p.effective_from }}</td>
+                        <td>{{ p.components.count() }}</td>
+                        <td><a href="{{ url_for('compensation.edit_profile', uid=p.user_id) }}" class="btn btn-sm btn-outline">Edit</a></td>
+                    </tr>
+                    {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No profiles</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-history">
+    <div class="card">
+        <div class="card-header">Payroll History</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Period</th><th>Run Date</th><th>Employees</th><th>Gross</th><th>Net</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    {% for r in runs %}
+                    <tr>
+                        <td>{{ r.month }}/{{ r.year }}</td>
+                        <td>{{ r.run_date.strftime('%d-%b-%Y') }}</td>
+                        <td>{{ r.employee_count }}</td>
+                        <td>Rs. {{ r.total_gross|round|int }}</td>
+                        <td>Rs. {{ r.total_net|round|int }}</td>
+                        <td><span class="badge badge-{{ 'success' if r.status == 'completed' else 'warning' }}">{{ r.status }}</span></td>
+                        <td><a href="{{ url_for('compensation.export_bank_ledger', rid=r.id) }}" class="btn btn-sm btn-outline">Ledger</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="tab-content hidden" id="tab-tax">
+    <div class="card">
+        <div class="card-header flex-between">
+            <span>Income Tax Slabs</span>
+            <a href="{{ url_for('compensation.tax_settings') }}" class="btn btn-sm btn-primary">Manage Slabs</a>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Min (Rs.)</th><th>Max (Rs.)</th><th>Rate</th><th>Fixed (Rs.)</th></tr></thead>
+                <tbody>
+                    {% for s in slabs %}
+                    <tr>
+                        <td>Rs. {{ s.min_income|round|int }}</td>
+                        <td>Rs. {{ s.max_income|round|int }}</td>
+                        <td>{{ s.rate_pct }}%</td>
+                        <td>Rs. {{ s.fixed_amount|round|int }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No slabs configured</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card mb-20">
+    <div class="card-header">My Payroll Profile</div>
+    {% if profile %}
+    <table>
+        <tr><td style="font-weight:600;">Basic Salary</td><td>Rs. {{ profile.basic_salary|round|int }}</td></tr>
+        <tr><td style="font-weight:600;">Effective From</td><td>{{ profile.effective_from }}</td></tr>
+    </table>
+    {% else %}
+    <p style="color:#999;">No payroll profile configured.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-header">My Salary Slips</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Period</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for s in slips %}
+                <tr>
+                    <td>{{ s.payroll_run.month }}/{{ s.payroll_run.year }}</td>
+                    <td>Rs. {{ s.gross_pay|round|int }}</td>
+                    <td>Rs. {{ s.total_deductions|round|int }}</td>
+                    <td><strong>Rs. {{ s.net_pay|round|int }}</strong></td>
+                    <td>
+                        <a href="{{ url_for('compensation.view_slip', sid=s.id) }}" class="btn btn-sm btn-outline">View</a>
+                        <a href="{{ url_for('compensation.download_slip_pdf', sid=s.id) }}" class="btn btn-sm btn-primary">PDF</a>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No salary slips</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_scripts %}
+<script>
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        document.getElementById('tab-' + this.dataset.tab).classList.remove('hidden');
+    });
+});
+</script>
+{% endblock %}

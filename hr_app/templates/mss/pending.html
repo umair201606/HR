@@ -1,0 +1,66 @@
+{% extends "layouts/base.html" %}
+{% block title %}Pending Approvals - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Pending Approvals</h1>
+</div>
+
+<div class="card mb-20">
+    <div class="card-header">Leave Approvals</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Action</th></tr></thead>
+            <tbody>
+                {% for a in leave_approvals %}
+                <tr>
+                    <td>{{ a.leave_request.user.full_name }}</td>
+                    <td>{{ a.leave_request.leave_type.name }}</td>
+                    <td>{{ a.leave_request.start_date }} - {{ a.leave_request.end_date }}</td>
+                    <td>{{ a.leave_request.total_days }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('leave.review', aid=a.id) }}" style="display:inline;">
+                            <input type="hidden" name="action" value="approve">
+                            <button class="btn btn-sm btn-accent">Approve</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('leave.review', aid=a.id) }}" style="display:inline;">
+                            <input type="hidden" name="action" value="reject">
+                            <input type="text" name="comment" placeholder="Reason" style="width:80px;font-size:11px;padding:4px;">
+                            <button class="btn btn-sm btn-danger">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">None pending</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Timesheet Approvals</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Employee</th><th>Week</th><th>Hours</th><th>Action</th></tr></thead>
+            <tbody>
+                {% for a in ts_approvals %}
+                <tr>
+                    <td>{{ a.week.user.full_name }}</td>
+                    <td>{{ a.week.week_start }} - {{ a.week.week_end }}</td>
+                    <td>{{ a.week.total_hours }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('timesheet.review', aid=a.id) }}" style="display:inline;">
+                            <input type="hidden" name="action" value="approve">
+                            <button class="btn btn-sm btn-accent">Approve</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('timesheet.review', aid=a.id) }}" style="display:inline;">
+                            <input type="hidden" name="action" value="reject">
+                            <input type="text" name="comment" placeholder="Reason" style="width:80px;font-size:11px;padding:4px;">
+                            <button class="btn btn-sm btn-danger">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">None pending</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

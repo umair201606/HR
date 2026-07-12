@@ -1,0 +1,38 @@
+{% extends "layouts/base.html" %}
+{% block title %}Leave Approvals - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Leave Approval Requests</h1>
+</div>
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Employee</th><th>Type</th><th>Dates</th><th>Days</th><th>Reason</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+                {% for a in approvals %}
+                <tr>
+                    <td>{{ a.leave_request.user.full_name }}</td>
+                    <td>{{ a.leave_request.leave_type.name }}</td>
+                    <td>{{ a.leave_request.start_date }} to {{ a.leave_request.end_date }}</td>
+                    <td>{{ a.leave_request.total_days }}</td>
+                    <td>{{ a.leave_request.reason[:50] }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('leave.review', aid=a.id) }}" style="display:flex;gap:4px;">
+                            <input type="hidden" name="action" value="approve">
+                            <button class="btn btn-sm btn-accent">Approve</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('leave.review', aid=a.id) }}" style="display:flex;gap:4px;margin-top:4px;">
+                            <input type="hidden" name="action" value="reject">
+                            <input type="text" name="comment" placeholder="Reason..." class="form-control" style="width:120px;font-size:11px;padding:4px 8px;">
+                            <button class="btn btn-sm btn-danger">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No pending approvals</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

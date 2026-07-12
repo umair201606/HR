@@ -1,0 +1,98 @@
+{% extends "layouts/base.html" %}
+{% block title %}Timesheets - HR Portal{% endblock %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Time Sheets</h1>
+        <p class="subtitle">Week {{ week.week_start }} to {{ week.week_end }}</p>
+    </div>
+    <div>
+        <span class="badge badge-{{ 'success' if week.status == 'approved' else 'warning' if week.status == 'submitted' else 'info' }}">{{ week.status }}</span>
+        {% if week.status == 'draft' %}
+        <form method="POST" action="{{ url_for('timesheet.submit', wid=week.id) }}" style="display:inline;">
+            <button class="btn btn-primary btn-sm">Submit for Approval</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card"><div class="stat-label">Total Hours</div><div class="stat-value">{{ week.total_hours or 0 }}</div></div>
+</div>
+
+<div class="card mb-20">
+    <div class="card-header">Weekly Grid</div>
+    <form id="entry-form" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:12px;background:#f8f9fa;border-radius:6px;">
+        <input type="hidden" name="week_id" value="{{ week.id }}">
+        <input type="hidden" name="day" id="entry-day" value="{{ days[0].date if days else '' }}">
+        <select id="entry-day-select" class="form-control" style="width:auto;">
+            {% for d in days %}
+            <option value="{{ d.date }}">{{ d.date.strftime('%a %d-%b') }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" name="project" class="form-control" style="width:150px;" placeholder="Project">
+        <input type="text" name="task" class="form-control" style="width:180px;" placeholder="Task *" required id="entry-task">
+        <input type="number" name="hours" class="form-control" style="width:80px;" placeholder="Hours" required id="entry-hours" step="0.5">
+        <button type="submit" class="btn btn-primary btn-sm">Add</button>
+    </form>
+
+    <div class="ts-grid">
+        {% for d in days %}
+        <div class="ts-day">
+            <div class="ts-day-header">{{ d.date.strftime('%a %d/%m') }}</div>
+            {% for e in d.entries %}
+            <div class="ts-entry">
+                {{ e.task }} ({{ e.hours }}h)
+                <button class="btn-link del-entry" data-id="{{ e.id }}" style="color:#c62828;font-size:10px;">&times;</button>
+            </div>
+            {% endfor %}
+            <div style="font-size:11px;font-weight:600;color:#1a237e;margin-top:4px;">Total: {{ d.total }}h</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Recent Weeks</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Week</th><th>Hours</th><th>Status</th><th>Submitted</th></tr></thead>
+            <tbody>
+                {% for w in recent %}
+                <tr>
+                    <td>{{ w.week_start }} - {{ w.week_end }}</td>
+                    <td>{{ w.total_hours or 0 }}</td>
+                    <td><span class="badge badge-{{ 'success' if w.status == 'approved' else 'warning' if w.status == 'submitted' else 'info' }}">{{ w.status }}</span></td>
+                    <td>{{ w.submitted_at.strftime('%d-%b-%Y') if w.submitted_at else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('entry-day-select')?.addEventListener('change', function() {
+    document.getElementById('entry-day').value = this.value;
+});
+
+document.getElementById('entry-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const r = await fetch('/timesheets/add-entry', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.error) { alert(d.error); return; }
+    location.reload();
+});
+
+document.querySelectorAll('.del-entry').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        if (!confirm('Delete entry?')) return;
+        await fetch('/timesheets/delete-entry/' + this.dataset.id, { method: 'POST' });
+        location.reload();
+    });
+});
+</script>
+{% endblock %}
