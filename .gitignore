@@ -1,8 +1,9 @@
 venv/
 __pycache__/
 *.pyc
-uploads/*
-!uploads/.gitkeep
-output/*
-!output/.gitkeep
+*.db
+uploads/
+output/
+hr_app/uploads/
+hr_app/requirements.txt
 *.zip
