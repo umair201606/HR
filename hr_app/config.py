@@ -7,7 +7,8 @@ ON_VERCEL = os.environ.get("VERCEL_ENV") is not None
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", os.urandom(24).hex())
     SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'hr.db')}"
+        "DATABASE_URL",
+        f"sqlite:///{os.path.join('/tmp' if ON_VERCEL else BASE_DIR, 'hr.db')}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads") if not ON_VERCEL else "/tmp/uploads"
