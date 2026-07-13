@@ -1,6 +1,7 @@
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ON_VERCEL = os.environ.get("VERCEL_ENV") is not None
 
 
 class Config:
@@ -9,7 +10,7 @@ class Config:
         "DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'hr.db')}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads") if not ON_VERCEL else "/tmp/uploads"
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     WTF_CSRF_ENABLED = False
     TEMPLATES_AUTO_RELOAD = True

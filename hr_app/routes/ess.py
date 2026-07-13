@@ -1,5 +1,6 @@
+import os
 from datetime import datetime, date
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file, current_app
 from flask_login import login_required, current_user
 from ..extensions import db
 from ..models.user import User, ChangeRequest
@@ -28,6 +29,11 @@ def index():
 @ess_bp.route("/update-profile", methods=["POST"])
 @login_required
 def update_profile():
+    # Direct update for display name
+    name = request.form.get("full_name", "").strip()
+    if name and name != current_user.full_name:
+        current_user.full_name = name
+    # Change request fields
     fields = ["phone", "emergency_contact", "emergency_phone", "address"]
     for f in fields:
         val = request.form.get(f, "").strip()
@@ -47,7 +53,40 @@ def update_profile():
                 db.session.add(ChangeRequest(user_id=current_user.id, field_name=f,
                                               old_value=str(old), new_value=val))
     db.session.commit()
-    flash("Profile update submitted for review.", "success")
+    flash("Profile updated.", "success")
+    return redirect(url_for("ess.index"))
+
+
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
+
+
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@ess_bp.route("/upload-picture", methods=["POST"])
+@login_required
+def upload_picture():
+    file = request.files.get("profile_picture")
+    if not file or file.filename == "":
+        flash("No file selected.", "danger")
+        return redirect(url_for("ess.index"))
+    if not allowed_file(file.filename):
+        flash("Allowed image types: PNG, JPG, JPEG, GIF, WebP.", "danger")
+        return redirect(url_for("ess.index"))
+    ext = file.filename.rsplit(".", 1)[1].lower()
+    filename = f"avatar_{current_user.id}_{int(datetime.utcnow().timestamp())}.{ext}"
+    upload_dir = os.path.join(current_app.config["UPLOAD_FOLDER"], "avatars")
+    os.makedirs(upload_dir, exist_ok=True)
+    file.save(os.path.join(upload_dir, filename))
+    # Delete old avatar from disk
+    if current_user.profile_image:
+        old_path = os.path.join(upload_dir, current_user.profile_image)
+        if os.path.exists(old_path):
+            os.remove(old_path)
+    current_user.profile_image = filename
+    db.session.commit()
+    flash("Profile picture updated.", "success")
     return redirect(url_for("ess.index"))
 
 
@@ -115,6 +154,19 @@ def loans():
 def slips():
     slips = PayrollSlip.query.filter_by(user_id=current_user.id).order_by(PayrollSlip.created_at.desc()).all()
     return render_template("ess/slips.html", slips=slips)
+
+
+@ess_bp.route("/avatar/<filename>")
+@login_required
+def avatar(filename):
+    upload_dir = os.path.join(current_app.config["UPLOAD_FOLDER"], "avatars")
+    path = os.path.join(upload_dir, filename)
+    if not os.path.isfile(path):
+        return "", 404
+    try:
+        return send_file(path)
+    except Exception:
+        return "", 404
 
 
 @ess_bp.route("/performance")

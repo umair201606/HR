@@ -5,5 +5,7 @@ __pycache__/
 uploads/
 output/
 hr_app/uploads/
-hr_app/requirements.txt
 *.zip
+.vercel/
+.env
+.env.local

@@ -535,7 +535,7 @@ def view_slip(sid):
     if slip.user_id != current_user.id and not current_user.is_admin():
         flash("Access denied.", "danger")
         return redirect(url_for("dashboard"))
-    comps = json.loads(slip.components_json) if slip.components_json else {"allowances": {}, "deductions": {}}
+    comps = _normalize_comps(json.loads(slip.components_json)) if slip.components_json else {"allowances": {}, "deductions": {}}
     return render_template("compensation/slip.html", slip=slip, comps=comps)
 
 
@@ -553,75 +553,135 @@ def download_slip_pdf(sid):
     except ImportError:
         flash("PDF library not installed.", "danger")
         return redirect(url_for("compensation.index"))
-    comps = json.loads(slip.components_json) if slip.components_json else {"allowances": {}, "deductions": {}}
-    pdf_dir = os.path.join(Config.UPLOAD_FOLDER, "slips")
-    os.makedirs(pdf_dir, exist_ok=True)
-    pdf_path = os.path.join(pdf_dir, f"slip_{slip.id}.pdf")
-    c = canvas.Canvas(pdf_path, pagesize=A4)
-    w, h = A4
-    c.setFont("Helvetica-Bold", 18)
-    c.drawCentredString(w / 2, h - 40, "Solarkon (Private) Limited")
+    comps = _normalize_comps(json.loads(slip.components_json)) if slip.components_json else {"allowances": {}, "deductions": {}}
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    pw, ph = A4
+    margin = 50
+    col_mid = pw / 2
+
+    # ── Header ──
+    c.setFillColor(colors.HexColor("#1a237e"))
+    c.setFont("Helvetica-Bold", 20)
+    c.drawCentredString(pw / 2, ph - 40, "Solarkon (Private) Limited")
+    c.setFillColor(colors.black)
     c.setFont("Helvetica", 11)
-    c.drawCentredString(w / 2, h - 58, f"Salary Slip - {slip.payroll_run.month}/{slip.payroll_run.year}")
+    c.drawCentredString(pw / 2, ph - 58, f"Salary Slip - {slip.payroll_run.month}/{slip.payroll_run.year}")
     c.setStrokeColor(colors.HexColor("#1a237e"))
     c.setLineWidth(2)
-    c.line(40, h - 65, w - 40, h - 65)
-    c.setStrokeColor(colors.black)
-    c.setLineWidth(0.5)
-    y = h - 90
-    c.setFont("Helvetica", 10)
-    c.drawString(40, y, f"Employee: {slip.user.full_name}")
-    c.drawString(320, y, f"Designation: {slip.user.designation or '-'}")
-    y -= 18
-    c.drawString(40, y, f"Department: {slip.user.department or '-'}")
-    c.drawString(320, y, f"Employee Code: {slip.user.employee_code}")
-    y -= 18
-    c.drawString(40, y, f"CNIC: {slip.user.cnic or '-'}")
-    y -= 26
+    c.line(margin, ph - 65, pw - margin, ph - 65)
+
+    # ── Employee Info ──
+    y = ph - 88
+    c.setFont("Helvetica", 9.5)
+    c.drawString(margin, y, f"Employee: {slip.user.full_name}")
+    c.drawString(col_mid + 10, y, f"Designation: {slip.user.designation or '-'}")
+    y -= 15
+    c.drawString(margin, y, f"Department: {slip.user.department or '-'}")
+    c.drawString(col_mid + 10, y, f"Code: {slip.user.employee_code}")
+    y -= 15
+    c.drawString(margin, y, f"CNIC: {slip.user.cnic or '-'}")
+    y -= 22
+
+    # ── Earnings & Deductions Header ──
     c.setFillColor(colors.HexColor("#1a237e"))
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, "Earnings")
-    c.drawString(300, y, "Deductions")
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(margin, y, "Earnings")
+    c.drawString(col_mid + 10, y, "Deductions")
     c.setFillColor(colors.black)
-    y -= 18
-    c.setFont("Helvetica", 10)
+    y -= 16
+
+    # Build lists
     earnings = [("Basic Salary", slip.basic_salary)]
     for name, val in comps.get("allowances", {}).items():
-        earnings.append((name, val))
-    earnings.append(("Overtime Pay", 0))
+        if val:
+            earnings.append((name, val))
     deductions_list = []
     for name, val in comps.get("deductions", {}).items():
-        deductions_list.append((name, val))
-    max_rows = max(len(earnings), len(deductions_list), 1)
+        if val:
+            deductions_list.append((name, val))
+
+    # Draw earnings/deductions rows with alternating shading
+    max_rows = max(len(earnings), len(deductions_list), 0)
+    c.setFont("Helvetica", 9.5)
     for i in range(max_rows):
+        if i % 2 == 1:
+            c.setFillColor(colors.HexColor("#f0f4ff"))
+        else:
+            c.setFillColor(colors.white)
+        c.rect(margin, y - 2, col_mid - margin - 5, 14, fill=1, stroke=0)
+        c.rect(col_mid + 5, y - 2, pw - margin - col_mid - 5, 14, fill=1, stroke=0)
+        c.setFillColor(colors.black)
         if i < len(earnings):
             label, val = earnings[i]
-            c.drawString(40, y, label)
-            c.drawRightString(280, y, f"Rs. {val:,.2f}")
+            c.drawString(margin + 3, y, str(label))
+            c.drawRightString(col_mid - 10, y, f"Rs. {val:,.2f}")
         if i < len(deductions_list):
             label, val = deductions_list[i]
-            c.drawString(300, y, label)
-            c.drawRightString(w - 40, y, f"Rs. {val:,.2f}")
-        y -= 16
-    y -= 4
+            c.drawString(col_mid + 10, y, str(label))
+            c.drawRightString(pw - margin, y, f"Rs. {val:,.2f}")
+        y -= 14
+    y -= 6
+
+    # ── Totals ──
+    c.setStrokeColor(colors.HexColor("#1a237e"))
+    c.setLineWidth(1)
+    c.line(margin, y, pw - margin, y)
     c.setFont("Helvetica-Bold", 10)
-    c.line(40, y + 2, w - 40, y + 2)
-    c.line(40, y, w - 40, y)
-    c.drawString(40, y - 16, "Total Earnings")
-    c.drawRightString(280, y - 16, f"Rs. {slip.gross_pay:,.2f}")
-    c.drawString(300, y - 16, "Total Deductions")
-    c.drawRightString(w - 40, y - 16, f"Rs. {slip.total_deductions:,.2f}")
-    y -= 40
+    c.drawString(margin, y - 14, "Total Earnings")
+    c.drawRightString(col_mid - 10, y - 14, f"Rs. {slip.gross_pay:,.2f}")
+    c.drawString(col_mid + 10, y - 14, "Total Deductions")
+    c.drawRightString(pw - margin, y - 14, f"Rs. {slip.total_deductions:,.2f}")
+    y -= 24
+
+    # ── Net Pay Box ──
+    box_y = y - 50
     c.setStrokeColor(colors.HexColor("#1b5e20"))
+    c.setFillColor(colors.HexColor("#e8f5e9"))
     c.setLineWidth(2)
-    c.line(40, y, w - 40, y)
+    c.roundRect(margin, box_y, pw - 2 * margin, 48, 6, fill=1, stroke=1)
     c.setFont("Helvetica-Bold", 14)
     c.setFillColor(colors.HexColor("#1b5e20"))
-    c.drawString(40, y - 22, "Net Payable: Rs. {:,}".format(int(slip.net_pay)))
-    c.drawRightString(w - 40, y - 22, "(Rupees {})".format(_num_to_words(int(slip.net_pay))))
+    c.drawString(margin + 12, box_y + 16, f"Net Payable: Rs. {int(slip.net_pay):,}")
+    # Amount in words (wrapped if too long)
+    words = _num_to_words(int(slip.net_pay))
+    c.setFont("Helvetica", 9)
+    c.drawRightString(pw - margin - 12, box_y + 18, f"(Rupees {words})")
+    y = box_y - 20
+
+    # ── Footer ──
+    c.setFont("Helvetica", 7.5)
+    c.setFillColor(colors.HexColor("#9ca3af"))
+    c.drawCentredString(pw / 2, 30, f"Generated on {datetime.now():%d-%b-%Y %H:%M} | This is a computer-generated slip")
+
     c.save()
-    return send_file(pdf_path, mimetype="application/pdf", as_attachment=False,
+    buf.seek(0)
+    return send_file(buf, mimetype="application/pdf", as_attachment=False,
                      download_name=f"salary_slip_{slip.payroll_run.month}_{slip.payroll_run.year}.pdf")
+
+
+def _normalize_comps(comps):
+    """Normalize components_json to {allowances: {}, deductions: {}} regardless of storage format."""
+    if isinstance(comps, dict):
+        if "allowances" in comps and "deductions" in comps:
+            return comps
+        result = {"allowances": {}, "deductions": {}}
+        for k, v in comps.items():
+            result["allowances"][k] = float(v) if v else 0
+        return result
+    if isinstance(comps, list):
+        result = {"allowances": {}, "deductions": {}}
+        for item in comps:
+            if isinstance(item, dict):
+                name = item.get("name", "Item")
+                val = float(item.get("value", 0))
+                typ = item.get("type", "allowance")
+                if typ in ("deduction", "tax", "loan"):
+                    result["deductions"][name] = val
+                else:
+                    result["allowances"][name] = val
+        return result
+    return {"allowances": {}, "deductions": {}}
 
 
 def _num_to_words(n):

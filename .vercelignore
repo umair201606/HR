@@ -1,0 +1,9 @@
+venv
+__pycache__
+*.pyc
+*.db
+.git
+.gitignore
+README.md
+seed_all_data.py
+server_trace.log

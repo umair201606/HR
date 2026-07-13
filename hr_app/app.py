@@ -144,6 +144,17 @@ def create_app():
                 pass
         return {}
 
+    import traceback
+    @app.errorhandler(500)
+    def handle_500(e):
+        tb = traceback.format_exc()
+        return f"<pre style='background:#fef2f2;padding:20px;border:2px solid #ef4444;border-radius:8px;font-size:13px;overflow:auto;max-height:90vh;'>{tb}</pre>", 500
+
+    @app.errorhandler(Exception)
+    def handle_all(e):
+        tb = traceback.format_exc()
+        return f"<pre style='background:#fef2f2;padding:20px;border:2px solid #ef4444;border-radius:8px;font-size:13px;overflow:auto;max-height:90vh;'>{tb}</pre>", 500
+
     with app.app_context():
         db.create_all()
         Role.seed()
