@@ -159,6 +159,29 @@ def create_app():
         db.create_all()
         Role.seed()
         Permission.seed()
+        from .models.user import User
+        if not User.query.first():
+            admin_role = Role.query.filter_by(name=Role.ADMIN).first()
+            mgr_role = Role.query.filter_by(name=Role.MANAGER).first()
+            emp_role = Role.query.filter_by(name=Role.EMPLOYEE).first()
+            admin = User(employee_code="ADM001", email="admin@solarkon.com",
+                         full_name="Admin User", designation="HR Director",
+                         department="Human Resources", role_id=admin_role.id,
+                         date_of_joining=date.today(), is_active=True)
+            admin.set_password("admin123")
+            db.session.add(admin)
+            mgr = User(employee_code="MGR001", email="manager@solarkon.com",
+                       full_name="Manager User", designation="Team Lead",
+                       department="Engineering", role_id=mgr_role.id,
+                       manager_id=1, date_of_joining=date.today(), is_active=True)
+            mgr.set_password("mgr123")
+            db.session.add(mgr)
+            emp = User(employee_code="EMP001", email="john.doe@solarkon.com",
+                       full_name="John Doe", designation="Software Engineer",
+                       department="Engineering", role_id=emp_role.id,
+                       manager_id=2, date_of_joining=date.today(), is_active=True)
+            emp.set_password("emp123")
+            db.session.add(emp)
         db.session.commit()
 
     return app
