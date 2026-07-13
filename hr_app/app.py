@@ -57,6 +57,10 @@ def create_app():
             from .models.user import User
             from sqlalchemy import func, extract, case
             import calendar
+            if db.engine.name == "sqlite":
+                weekday_filter = func.strftime("%w", Attendance.date).in_(["1", "2", "3", "4", "5"])
+            else:
+                weekday_filter = extract("dow", Attendance.date).in_([1, 2, 3, 4, 5])
             yearly = db.session.query(
                 extract("week", Attendance.date).label("week"),
                 extract("year", Attendance.date).label("year"),
@@ -65,7 +69,7 @@ def create_app():
                 func.sum(case((Attendance.is_half_day == True, 1), else_=0)).label("half"),
             ).filter(
                 extract("year", Attendance.date) == date.today().year,
-                func.strftime("%w", Attendance.date).in_(["1", "2", "3", "4", "5"])
+                weekday_filter
             ).group_by("year", "week").order_by("year", "week").all()
             emp_count = User.query.filter_by(is_active=True).count()
             chart_data = []

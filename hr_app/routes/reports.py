@@ -4,6 +4,7 @@ from datetime import datetime, date, timedelta
 from flask import Blueprint, render_template, request, jsonify, send_file
 from flask_login import login_required, current_user
 from sqlalchemy import func, extract, case
+from sqlalchemy import text
 from ..extensions import db
 from ..models.user import User
 from ..models.attendance import Attendance
@@ -118,8 +119,12 @@ def query():
         if date_to:
             base = base.filter(Attendance.date <= date_to)
         if "total_hours" in columns:
+            if db.engine.name == "sqlite":
+                hours_expr = func.julianday(Attendance.clock_out) - func.julianday(Attendance.clock_in)
+            else:
+                hours_expr = func.extract("epoch", Attendance.clock_out - Attendance.clock_in) / 3600.0
             totals = base.with_entities(
-                func.sum(case((Attendance.clock_out != None, func.julianday(Attendance.clock_out) - func.julianday(Attendance.clock_in)), else_=0))
+                func.sum(case((Attendance.clock_out != None, hours_expr), else_=0))
             ).scalar() or 0
             row["total_hours"] = round(float(totals) * 24, 2)
         if "overtime" in columns:
