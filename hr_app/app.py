@@ -8,7 +8,7 @@ from .models.user import Role, Permission
 
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), "static"), static_url_path="/static")
     app.config.from_object(Config)
 
     db.init_app(app)
