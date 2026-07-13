@@ -47,27 +47,20 @@
 {% if not chart_data %}
 <div class="card mt-20"><div class="card-header">Attendance Trend</div><div style="padding:30px;text-align:center;color:#888;">No attendance data for this year.</div></div>
 {% else %}
-{% set W = 600 %}
-{% set H = 200 %}
-{% set pt = 12 %}
-{% set pr = 16 %}
-{% set pb = 28 %}
-{% set pl = 40 %}
-{% set cw = W - pl - pr %}
-{% set ch = H - pt - pb %}
-{% set max_val = chart_data | map(attribute='total') | max %}
-{% set months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] %}
+{% set W = 600 %}{% set H = 200 %}{% set pt = 12 %}{% set pr = 16 %}{% set pb = 28 %}{% set pl = 40 %}
+{% set cw = W - pl - pr %}{% set ch = H - pt - pb %}{% set max_pct = 100 %}
 {% set x_step = cw // (chart_data|length - 1) if chart_data|length > 1 else cw %}
-{% set line_d = namespace(d="") %}
-{% set area_d = namespace(d="") %}
+{% set line_d = namespace(d="") %}{% set area_d = namespace(d="") %}
 {% for d in chart_data %}
 {% set x = pl + (loop.index0 * x_step) %}
-{% set y = (pt + ch - (d.total / max_val * ch)) | round %}
-{% if loop.first %}{% set line_d.d = "M" ~ x ~ "," ~ y %}{% set area_d.d = "M" ~ x ~ "," ~ y %}{% else %}{% set line_d.d = line_d.d ~ " L" ~ x ~ "," ~ y %}{% set area_d.d = area_d.d ~ " L" ~ x ~ "," ~ y %}{% endif %}
+{% set y = (pt + ch - (d.pct / max_pct * ch)) | round %}
+{% if loop.first %}{% set line_d.d = "M" ~ x ~ "," ~ y %}{% set area_d.d = "M" ~ x ~ "," ~ y %}
+{% else %}{% set line_d.d = line_d.d ~ " L" ~ x ~ "," ~ y %}{% set area_d.d = area_d.d ~ " L" ~ x ~ "," ~ y %}
+{% endif %}
 {% endfor %}
 {% set area_d.d = area_d.d ~ " L" ~ (pl + (chart_data|length - 1) * x_step) ~ "," ~ (pt + ch) ~ " L" ~ pl ~ "," ~ (pt + ch) ~ " Z" %}
 <div class="card mt-20">
-    <div class="card-header">Attendance Trend <span style="font-weight:400;font-size:12px;color:#888;">&bull; {{ chart_data|length }} months</span></div>
+    <div class="card-header">Weekly Attendance Trend <span style="font-weight:400;font-size:12px;color:#888;">&bull; {{ chart_data|length }} weeks</span></div>
     <div style="width:100%;height:220px;">
         <svg width="100%" height="220" viewBox="0 0 {{ W }} 220" style="display:block;">
             <defs>
@@ -79,7 +72,7 @@
             {% for i in range(5) %}
             {% set y = pt + (ch // 4) * i %}
             <line x1="{{ pl }}" x2="{{ W - pr }}" y1="{{ y }}" y2="{{ y }}" stroke="#e5e7eb" stroke-width="1"/>
-            <text x="{{ pl - 6 }}" y="{{ y + 4 }}" text-anchor="end" font-size="10" fill="#9ca3af">{{ (max_val - (max_val // 4) * i) | round }}</text>
+            <text x="{{ pl - 6 }}" y="{{ y + 4 }}" text-anchor="end" font-size="10" fill="#9ca3af">{{ max_pct - (max_pct // 4) * i }}%</text>
             {% endfor %}
             {% if chart_data|length > 1 %}
             <path d="{{ area_d.d }}" fill="url(#chartGrad)" opacity="0.15"/>
@@ -87,12 +80,12 @@
             {% endif %}
             {% for d in chart_data %}
             {% set x = pl + (loop.index0 * x_step) %}
-            {% set y = (pt + ch - (d.total / max_val * ch)) | round %}
+            {% set y = (pt + ch - (d.pct / max_pct * ch)) | round %}
             <circle cx="{{ x }}" cy="{{ y }}" r="4" fill="#3b82f6" stroke="#fff" stroke-width="2">
-                <title>{{ months[d.month] }}: {{ d.total }} ({{ d.late }} late, {{ d.half }} half-day)</title>
+                <title>Week of {{ d.label }}: {{ d.pct }}% ({{ d.total }} records)&#10;{{ d.late }} late, {{ d.half }} half-day</title>
             </circle>
-            <text x="{{ x }}" y="{{ y - 10 }}" text-anchor="middle" font-size="11" font-weight="600" fill="#1e293b">{{ d.total }}</text>
-            <text x="{{ x }}" y="{{ pt + ch + 18 }}" text-anchor="middle" font-size="11" fill="#64748b">{{ months[d.month] or d.month }}</text>
+            <text x="{{ x }}" y="{{ y - 10 }}" text-anchor="middle" font-size="11" font-weight="600" fill="#1e293b">{{ '%g' % d.pct }}%</text>
+            <text x="{{ x }}" y="{{ pt + ch + 18 }}" text-anchor="middle" font-size="9" fill="#64748b">{{ d.label }}</text>
             {% endfor %}
         </svg>
     </div>

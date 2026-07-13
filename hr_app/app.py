@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import date, timedelta
 from flask import Flask, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from .config import Config
@@ -54,14 +54,36 @@ def create_app():
         chart_data = []
         if current_user.is_admin() or current_user.is_manager():
             from .models.attendance import Attendance
+            from .models.user import User
             from sqlalchemy import func, extract, case
-            monthly = db.session.query(
-                extract("month", Attendance.date).label("month"),
+            import calendar
+            yearly = db.session.query(
+                extract("week", Attendance.date).label("week"),
+                extract("year", Attendance.date).label("year"),
                 func.count(Attendance.id).label("total"),
                 func.sum(case((Attendance.is_late == True, 1), else_=0)).label("late"),
                 func.sum(case((Attendance.is_half_day == True, 1), else_=0)).label("half"),
-            ).filter(extract("year", Attendance.date) == date.today().year).group_by("month").order_by("month").all()
-            chart_data = [{"month": int(r.month), "total": int(r.total), "late": int(r.late), "half": int(r.half)} for r in monthly]
+            ).filter(
+                extract("year", Attendance.date) == date.today().year,
+                func.strftime("%w", Attendance.date).in_(["1", "2", "3", "4", "5"])
+            ).group_by("year", "week").order_by("year", "week").all()
+            emp_count = User.query.filter_by(is_active=True).count()
+            chart_data = []
+            for r in yearly:
+                wk = int(r.week)
+                yr = int(r.year)
+                # SQLite %W week: week 1 starts on first Monday of the year
+                jan1 = date(yr, 1, 1)
+                first_monday = jan1 + timedelta(days=(7 - jan1.weekday()) % 7)
+                monday = first_monday + timedelta(weeks=wk - 1)
+                # Count weekdays (Mon-Fri) in that week
+                weekdays = sum(1 for d in range(7) if (monday + timedelta(days=d)).weekday() < 5)
+                possible = emp_count * weekdays
+                pct = round((int(r.total) / possible) * 100, 1) if possible else 0
+                chart_data.append({
+                    "week": wk, "total": int(r.total), "late": int(r.late), "half": int(r.half),
+                    "pct": pct, "label": f"{monday:%b %d}"
+                })
         return render_template("dashboard/index.html", chart_data=chart_data)
 
     @app.context_processor
