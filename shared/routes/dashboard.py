@@ -7,9 +7,11 @@ dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/dashboard")
 @dashboard_bp.route("/")
 @login_required
 def hub():
-    has_hr = current_user.has_hr_access or current_user.is_admin()
-    has_inv = current_user.has_inventory_access or current_user.is_admin()
-    if not has_hr and not has_inv:
+    is_admin = current_user.is_admin()
+    has_hr = current_user.has_hr_access or is_admin
+    has_inv = current_user.has_inventory_access or is_admin
+    has_finance = is_admin
+    if not has_hr and not has_inv and not has_finance:
         return render_template("dashboard/access_denied.html")
     return render_template("dashboard/hub.html",
-                           has_hr=has_hr, has_inv=has_inv)
+                           has_hr=has_hr, has_inv=has_inv, has_finance=has_finance)
