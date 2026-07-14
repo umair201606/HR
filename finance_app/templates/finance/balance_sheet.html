@@ -1,0 +1,69 @@
+{% extends "finance/layouts/base.html" %}
+{% block title %}Balance Sheet{% endblock %}
+{% block heading %}Balance Sheet{% endblock %}
+{% block actions %}
+<a href="?as_of={{ as_of.strftime('%Y-%m-%d') if as_of else '' }}&format=excel" class="btn btn-success btn-sm"><i class="fas fa-file-excel"></i> Excel</a>
+<a href="?as_of={{ as_of.strftime('%Y-%m-%d') if as_of else '' }}&format=pdf" class="btn btn-danger btn-sm"><i class="fas fa-file-pdf"></i> PDF</a>
+<button onclick="window.print()" class="btn btn-outline btn-sm"><i class="fas fa-print"></i> Print</button>
+{% endblock %}
+{% block content %}
+<form method="get" class="card mb-6 no-print">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1">As of Date</label>
+      <input type="date" name="as_of" value="{{ as_of.strftime('%Y-%m-%d') }}" class="w-full">
+    </div>
+    <div>
+      <button type="submit" class="btn btn-primary w-full"><i class="fas fa-search"></i> View</button>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <p class="text-sm text-slate-500 mb-4">As of <strong>{{ as_of.strftime('%d %B %Y') }}</strong></p>
+  <div class="overflow-x-auto">
+    <table class="report-table">
+      <thead><tr><th>Code</th><th>Account</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        <tr style="background:#eff6ff;"><td colspan="3" style="font-weight:700;color:#1e40af;"><i class="fas fa-building"></i> ASSETS</td></tr>
+        {% for a in assets %}
+        <tr><td>{{ a.code }}</td><td>{{ a.name }}</td><td class="num">{{ "{:,.2f}".format(a.amount) }}</td></tr>
+        {% else %}
+        <tr><td colspan="3" class="text-slate-400 text-center">No asset accounts</td></tr>
+        {% endfor %}
+        <tr style="font-weight:600;background:#eff6ff;"><td></td><td>Total Assets</td><td class="num">{{ "{:,.2f}".format(total_assets) }}</td></tr>
+
+        <tr style="background:#f3e8ff;"><td colspan="3" style="font-weight:700;color:#5b21b6;"><i class="fas fa-credit-card"></i> LIABILITIES</td></tr>
+        {% for l in liabilities %}
+        <tr><td>{{ l.code }}</td><td>{{ l.name }}</td><td class="num">{{ "{:,.2f}".format(l.amount) }}</td></tr>
+        {% else %}
+        <tr><td colspan="3" class="text-slate-400 text-center">No liability accounts</td></tr>
+        {% endfor %}
+        <tr style="font-weight:600;background:#f3e8ff;"><td></td><td>Total Liabilities</td><td class="num">{{ "{:,.2f}".format(total_liabilities) }}</td></tr>
+
+        <tr style="background:#ecfdf5;"><td colspan="3" style="font-weight:700;color:#065f46;"><i class="fas fa-users"></i> EQUITY</td></tr>
+        {% for e in equity %}
+        <tr><td>{{ e.code }}</td><td>{{ e.name }}</td><td class="num">{{ "{:,.2f}".format(e.amount) }}</td></tr>
+        {% else %}
+        <tr><td colspan="3" class="text-slate-400 text-center">No equity accounts</td></tr>
+        {% endfor %}
+        <tr style="font-weight:600;background:#ecfdf5;"><td></td><td>Total Equity</td><td class="num">{{ "{:,.2f}".format(total_equity) }}</td></tr>
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:700;font-size:15px;background:#1e293b;color:#fff;">
+          <td colspan="2">LIABILITIES + EQUITY</td>
+          <td class="num">{{ "{:,.2f}".format(total_liabilities + total_equity) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <p class="mt-2 text-sm {% if total_assets == total_liabilities + total_equity %}text-green-600{% else %}text-red-600{% endif %}">
+    <i class="fas {% if total_assets == total_liabilities + total_equity %}fa-check-circle{% else %}fa-exclamation-triangle{% endif %}"></i>
+    {% if total_assets == total_liabilities + total_equity %}
+    Balance Sheet is <strong>IN BALANCE</strong> ({{ "{:,.2f}".format(total_assets) }} = {{ "{:,.2f}".format(total_liabilities + total_equity) }})
+    {% else %}
+    Difference: {{ "{:,.2f}".format(total_assets - (total_liabilities + total_equity)) }}
+    {% endif %}
+  </p>
+</div>
+{% endblock %}

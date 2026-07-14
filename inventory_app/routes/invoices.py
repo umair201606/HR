@@ -1,11 +1,14 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime, date
+from decimal import Decimal
 from ..extensions import db
 from ..models.invoice import InvInvoice, InvInvoiceItem
 from ..models.customer import InvCustomer
 from ..models.product import InvProduct
 from ..models.stock_movement import InvStockMovement
+from shared.ledger_utils import post_journal_entry, reverse_journal_entry
+from shared.models.ledger import ChartOfAccount
 
 inv_inv_bp = Blueprint("inv_invoices", __name__, url_prefix="/inventory/invoices")
 
@@ -147,6 +150,43 @@ def save_invoice():
                     created_by=current_user.id,
                 ))
 
+    if action == "approve":
+        ar_acc = ChartOfAccount.query.filter_by(code="1100").first()
+        rev_acc = ChartOfAccount.query.filter_by(code="4000").first()
+        cogs_acc = ChartOfAccount.query.filter_by(code="5000").first()
+        inv_acc = ChartOfAccount.query.filter_by(code="1200").first()
+        lines = [
+            {"account_id": ar_acc.id, "debit": float(inv.total_amount), "credit": 0,
+             "description": f"AR - {inv.invoice_number}"},
+            {"account_id": rev_acc.id, "debit": 0, "credit": float(inv.total_amount),
+             "description": f"Revenue - {inv.invoice_number}"},
+        ]
+        total_cogs = Decimal("0")
+        for item in InvInvoiceItem.query.filter_by(invoice_id=inv.id).all():
+            if item.product_id:
+                prod = InvProduct.query.get(item.product_id)
+                if prod and prod.cost_price:
+                    cost = Decimal(str(prod.cost_price)) * Decimal(str(item.quantity))
+                    total_cogs += cost
+        if total_cogs > 0 and cogs_acc and inv_acc:
+            lines.append(
+                {"account_id": cogs_acc.id, "debit": float(total_cogs), "credit": 0,
+                 "description": f"COGS - {inv.invoice_number}"},
+            )
+            lines.append(
+                {"account_id": inv_acc.id, "debit": 0, "credit": float(total_cogs),
+                 "description": f"Inventory - {inv.invoice_number}"},
+            )
+        post_journal_entry(
+            voucher_type="SI",
+            voucher_id=inv.id,
+            voucher_number=inv.invoice_number,
+            description=f"Sales Invoice {inv.invoice_number} - {inv.customer.name if inv.customer else ''}",
+            lines=lines,
+            entry_date=datetime.utcnow(),
+            created_by=current_user.id,
+        )
+
     db.session.commit()
     if action == "approve":
         msg = "approved and locked"
@@ -164,6 +204,8 @@ def unapprove_invoice(id):
     inv = InvInvoice.query.get_or_404(id)
     if inv.status != "approved":
         return jsonify({"ok": False, "error": "Only approved invoices can be unapproved"}), 400
+
+    reverse_journal_entry("SI", inv.id, current_user.id)
 
     inv.status = "unpaid"
 
@@ -195,6 +237,23 @@ def pay_invoice(id):
             inv.status = "paid"
         else:
             inv.status = "partial"
+        cash_acc = ChartOfAccount.query.filter_by(code="1000").first()
+        ar_acc = ChartOfAccount.query.filter_by(code="1100").first()
+        if cash_acc and ar_acc:
+            post_journal_entry(
+                voucher_type="PMT",
+                voucher_id=inv.id,
+                voucher_number=f"PMT-{inv.invoice_number}-{datetime.utcnow():%Y%m%d%H%M%S}",
+                description=f"Payment received for {inv.invoice_number} - {inv.customer.name if inv.customer else ''}",
+                lines=[
+                    {"account_id": cash_acc.id, "debit": amount, "credit": 0,
+                     "description": f"Cash - {inv.invoice_number}"},
+                    {"account_id": ar_acc.id, "debit": 0, "credit": amount,
+                     "description": f"AR - {inv.invoice_number}"},
+                ],
+                entry_date=datetime.utcnow(),
+                created_by=current_user.id,
+            )
         db.session.commit()
         flash(f"Payment of {amount} recorded", "success")
     return redirect(url_for("inv_invoices.list_invoices"))

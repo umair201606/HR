@@ -28,6 +28,7 @@ def _create_app():
         jinja2.FileSystemLoader([
             os.path.join(os.path.dirname(__file__), "hr_app", "templates"),
             os.path.join(os.path.dirname(__file__), "inventory_app", "templates"),
+            os.path.join(os.path.dirname(__file__), "finance_app", "templates"),
         ]),
     ])
     app.jinja_loader = my_loader
@@ -43,6 +44,9 @@ def _create_app():
 
     from inventory_app.app import register_inventory_blueprints
     register_inventory_blueprints(app)
+
+    from finance_app.app import register_finance_blueprints
+    register_finance_blueprints(app)
 
     @app.context_processor
     def inject_now():
@@ -145,6 +149,13 @@ def _seed_all_data(app):
                 ("5700", "Consumption Expense", "expense"),
                 ("5800", "Scrap/Write-off", "expense"),
                 ("5900", "Inventory Adjustment", "expense"),
+                ("6000", "Purchase Discounts", "contra-expense"),
+                ("6100", "Commission Expense", "expense"),
+                ("6200", "Freight Expense", "expense"),
+                ("6300", "Loading/Unloading Expense", "expense"),
+                ("6400", "Withholding Tax Payable", "liability"),
+                ("6500", "Sales Tax Payable", "liability"),
+                ("6600", "Purchase Returns", "contra-expense"),
             ]:
                 db.session.add(ChartOfAccount(code=code, name=name, type=type_))
         else:
@@ -152,6 +163,13 @@ def _seed_all_data(app):
                 ("5700", "Consumption Expense", "expense"),
                 ("5800", "Scrap/Write-off", "expense"),
                 ("5900", "Inventory Adjustment", "expense"),
+                ("6000", "Purchase Discounts", "contra-expense"),
+                ("6100", "Commission Expense", "expense"),
+                ("6200", "Freight Expense", "expense"),
+                ("6300", "Loading/Unloading Expense", "expense"),
+                ("6400", "Withholding Tax Payable", "liability"),
+                ("6500", "Sales Tax Payable", "liability"),
+                ("6600", "Purchase Returns", "contra-expense"),
             ]:
                 if not ChartOfAccount.query.filter_by(code=code).first():
                     db.session.add(ChartOfAccount(code=code, name=name, type=type_))

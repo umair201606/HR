@@ -130,6 +130,9 @@
             <a href="{{ url_for('inv_reports.low_stock_report') }}" class="nav-item {{ 'active' if request.endpoint and request.endpoint == 'inv_reports.low_stock_report' else '' }}">
               <span class="nav-icon">&#9632;</span><span>Low Stock Alert</span>
             </a>
+            <a href="{{ url_for('finance.dashboard') }}" class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('finance.') else '' }}">
+              <span class="nav-icon">&#128176;</span><span>Financial Reports</span>
+            </a>
           </div>
         </div>
       </nav>

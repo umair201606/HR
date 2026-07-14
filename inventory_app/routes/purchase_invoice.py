@@ -1,12 +1,15 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime
+from decimal import Decimal
 from ..extensions import db
 from ..models.purchase_invoice import InvPurchaseInvoice, InvPurchaseInvoiceItem
 from ..models.supplier import InvSupplier
 from ..models.product import InvProduct
 from ..models.stock_movement import InvStockMovement
 from shared.models.vouchers import ConsumptionItem as ConsItem, ScrapItem, StockAdjustmentItem as AdjItem
+from shared.ledger_utils import post_journal_entry, reverse_journal_entry
+from shared.models.ledger import ChartOfAccount
 
 inv_pinv_bp = Blueprint("inv_purchase_invoice", __name__,
                          url_prefix="/inventory/purchase-invoice")
@@ -172,6 +175,25 @@ def save_invoice():
                     created_by=current_user.id,
                 ))
 
+    if action == "approve":
+        inv_acc = ChartOfAccount.query.filter_by(code="1200").first()
+        ap_acc = ChartOfAccount.query.filter_by(code="2000").first()
+        if inv_acc and ap_acc:
+            post_journal_entry(
+                voucher_type="PI",
+                voucher_id=inv.id,
+                voucher_number=inv.voucher_number,
+                description=f"Purchase Invoice {inv.invoice_number} - {inv.supplier.name if inv.supplier else ''}",
+                lines=[
+                    {"account_id": inv_acc.id, "debit": float(inv.net_payable), "credit": 0,
+                     "description": f"Inventory - {inv.invoice_number}"},
+                    {"account_id": ap_acc.id, "debit": 0, "credit": float(inv.net_payable),
+                     "description": f"AP - {inv.invoice_number}"},
+                ],
+                entry_date=datetime.utcnow(),
+                created_by=current_user.id,
+            )
+
     db.session.commit()
     if action == "approve":
         msg = "approved and locked"
@@ -208,6 +230,8 @@ def unapprove_invoice(id):
         ).first()
         if adj:
             return jsonify({"ok": False, "error": "Cannot unapprove: Items already adjusted"}), 400
+
+    reverse_journal_entry("PI", inv.id, current_user.id)
 
     inv.status = "unapproved"
     inv.approved_by = None

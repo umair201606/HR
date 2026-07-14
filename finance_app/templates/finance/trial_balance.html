@@ -1,0 +1,60 @@
+{% extends "finance/layouts/base.html" %}
+{% block title %}Trial Balance{% endblock %}
+{% block heading %}Trial Balance{% endblock %}
+{% block actions %}
+<a href="?as_of={{ as_of.strftime('%Y-%m-%d') if as_of else '' }}&format=excel" class="btn btn-success btn-sm"><i class="fas fa-file-excel"></i> Excel</a>
+<a href="?as_of={{ as_of.strftime('%Y-%m-%d') if as_of else '' }}&format=pdf" class="btn btn-danger btn-sm"><i class="fas fa-file-pdf"></i> PDF</a>
+<button onclick="window.print()" class="btn btn-outline btn-sm"><i class="fas fa-print"></i> Print</button>
+{% endblock %}
+{% block content %}
+<form method="get" class="card mb-6 no-print">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1">As of Date</label>
+      <input type="date" name="as_of" value="{{ as_of.strftime('%Y-%m-%d') }}" class="w-full">
+    </div>
+    <div>
+      <button type="submit" class="btn btn-primary w-full"><i class="fas fa-search"></i> View</button>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <p class="text-sm text-slate-500 mb-4">As of <strong>{{ as_of.strftime('%d %B %Y') }}</strong></p>
+  {% if rows %}
+  <div class="overflow-x-auto">
+    <table class="report-table">
+      <thead>
+        <tr><th>Code</th><th>Account</th><th>Type</th><th class="num">Debit</th><th class="num">Credit</th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.code }}</td>
+          <td>{{ r.name }}</td>
+          <td><span class="badge {% if r.type == 'Asset' %}badge-blue{% elif r.type == 'Liability' %}badge-purple{% elif r.type == 'Equity' %}badge-green{% elif r.type == 'Revenue' %}badge-green{% else %}badge-blue{% endif %}">{{ r.type }}</span></td>
+          <td class="num">{{ "{:,.2f}".format(r.debit) if r.debit else "—" }}</td>
+          <td class="num">{{ "{:,.2f}".format(r.credit) if r.credit else "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:700;background:#f1f5f9;">
+          <td></td>
+          <td>TOTAL</td>
+          <td></td>
+          <td class="num">{{ "{:,.2f}".format(total_dr) }}</td>
+          <td class="num">{{ "{:,.2f}".format(total_cr) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <p class="mt-2 text-sm {% if total_dr == total_cr %}text-green-600{% else %}text-red-600{% endif %}">
+    <i class="fas {% if total_dr == total_cr %}fa-check-circle{% else %}fa-exclamation-triangle{% endif %}"></i>
+    {% if total_dr == total_cr %}Trial Balance is <strong>IN BALANCE</strong>{% else %}Difference: {{ "{:,.2f}".format(total_dr - total_cr) }}{% endif %}
+  </p>
+  {% else %}
+  <p class="text-slate-500 text-center py-8">No journal entries posted yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

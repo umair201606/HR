@@ -1,12 +1,15 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime
+from decimal import Decimal
 from ..extensions import db
 from ..models.purchase_return import InvPurchaseReturn, InvPurchaseReturnItem
 from ..models.purchase_invoice import InvPurchaseInvoice, InvPurchaseInvoiceItem
 from ..models.supplier import InvSupplier
 from ..models.product import InvProduct
 from ..models.stock_movement import InvStockMovement
+from shared.ledger_utils import post_journal_entry, reverse_journal_entry
+from shared.models.ledger import ChartOfAccount
 
 inv_preturn_bp = Blueprint("inv_purchase_return", __name__,
                            url_prefix="/inventory/purchase-return")
@@ -233,6 +236,25 @@ def save_return():
                     created_by=current_user.id,
                 ))
 
+    if action == "approve":
+        ap_acc = ChartOfAccount.query.filter_by(code="2000").first()
+        inv_acc = ChartOfAccount.query.filter_by(code="1200").first()
+        if ap_acc and inv_acc:
+            post_journal_entry(
+                voucher_type="PR",
+                voucher_id=ret.id,
+                voucher_number=ret.return_number,
+                description=f"Purchase Return {ret.return_number}",
+                lines=[
+                    {"account_id": ap_acc.id, "debit": float(ret.net_return_amount), "credit": 0,
+                     "description": f"AP - {ret.return_number}"},
+                    {"account_id": inv_acc.id, "debit": 0, "credit": float(ret.net_return_amount),
+                     "description": f"Inventory - {ret.return_number}"},
+                ],
+                entry_date=datetime.utcnow(),
+                created_by=current_user.id,
+            )
+
     db.session.commit()
     if action == "approve":
         msg = "approved and posted"
@@ -250,6 +272,8 @@ def unapprove_return(id):
     ret = InvPurchaseReturn.query.get_or_404(id)
     if ret.status != "approved":
         return jsonify({"ok": False, "error": "Only approved returns can be unapproved"}), 400
+
+    reverse_journal_entry("PR", ret.id, current_user.id)
 
     ret.status = "unapproved"
     ret.approved_by = None
