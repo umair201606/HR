@@ -1,4 +1,5 @@
-from .user import User, Role, Permission, ChangeRequest
+from .user import User, Role, Permission
+from .change_request import ChangeRequest
 from .attendance import Attendance, AttendanceLog
 from .leave import LeaveType, LeaveQuota, LeaveRequest, LeaveApproval
 from .timesheet import TimesheetEntry, TimesheetWeek, TimesheetApproval

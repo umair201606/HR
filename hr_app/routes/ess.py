@@ -3,7 +3,8 @@ from datetime import datetime, date
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file, current_app
 from flask_login import login_required, current_user
 from ..extensions import db
-from ..models.user import User, ChangeRequest
+from ..models.user import User
+from ..models.change_request import ChangeRequest
 from ..models.leave import LeaveRequest, LeaveQuota, LeaveType
 from ..models.timesheet import TimesheetWeek, TimesheetEntry
 from ..models.loan import LoanAdvanceRequest, LoanRepayment

@@ -1,0 +1,35 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Login - Inventory{% endblock %}
+{% block content %}
+<div class="login-layout">
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <h1>Solarkon Inventory</h1>
+        <p>Sign in to manage inventory</p>
+      </div>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      {% for category, message in messages %}
+      <div class="flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+      {% endif %}
+      {% endwith %}
+      <form method="POST" class="login-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required placeholder="you@solarkon.com">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required placeholder="Enter password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+      </form>
+      <div class="login-footer">
+        <p>Demo: admin@solarkon.com / admin123</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

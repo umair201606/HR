@@ -1,0 +1,275 @@
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask_login import login_required, current_user
+from datetime import datetime
+from ..extensions import db
+from ..models.purchase_invoice import InvPurchaseInvoice, InvPurchaseInvoiceItem
+from ..models.supplier import InvSupplier
+from ..models.product import InvProduct
+from ..models.stock_movement import InvStockMovement
+from ..models.voucher import InvConsumptionItem, InvScrapItem, InvStockAdjustmentItem
+
+inv_pinv_bp = Blueprint("inv_purchase_invoice", __name__,
+                         url_prefix="/inventory/purchase-invoice")
+
+
+def next_voucher():
+    last = InvPurchaseInvoice.query.order_by(InvPurchaseInvoice.id.desc()).first()
+    n = (last.id + 1) if last else 1
+    return f"VCH-{datetime.utcnow():%Y%m}-{n:04d}"
+
+
+def next_invoice_num(supplier_id=None):
+    last = InvPurchaseInvoice.query.order_by(InvPurchaseInvoice.id.desc()).first()
+    n = (last.id + 1) if last else 1
+    return f"PINV-{datetime.utcnow():%Y%m}-{n:04d}"
+
+
+@inv_pinv_bp.route("/", defaults={"id": None})
+@inv_pinv_bp.route("/<int:id>")
+@login_required
+def invoice_form(id):
+    invoice = InvPurchaseInvoice.query.get(id) if id else None
+    suppliers = InvSupplier.query.filter_by(is_active=True).order_by(InvSupplier.name).all()
+    products = InvProduct.query.filter_by(is_active=True).order_by(InvProduct.name).all()
+    return render_template("purchase_invoice/form_inv.html",
+                           invoice=invoice,
+                           suppliers=suppliers,
+                           products=products,
+                           now=datetime.utcnow())
+
+
+def validate_approve(data):
+    errors = []
+    if not data.get("supplier_id"):
+        errors.append("Supplier is required")
+    items = data.get("items", [])
+    if not items:
+        errors.append("At least one item is required")
+    else:
+        for i, row in enumerate(items):
+            if not row.get("product_id"):
+                errors.append(f"Row {i+1}: Product is required")
+            qty = float(row.get("quantity", 0))
+            if qty <= 0:
+                errors.append(f"Row {i+1}: Quantity must be greater than 0")
+    return errors
+
+
+@inv_pinv_bp.route("/save", methods=["POST"])
+@login_required
+def save_invoice():
+    data = request.get_json(force=True)
+    inv_id = data.get("id")
+    action = data.get("action", "save")
+
+    if inv_id:
+        inv = InvPurchaseInvoice.query.get_or_404(inv_id)
+        if inv.status == "approved":
+            return jsonify({"ok": False, "error": "Cannot modify approved invoice"}), 400
+    else:
+        inv = InvPurchaseInvoice(
+            voucher_number=next_voucher(),
+            invoice_number=data.get("invoice_number") or next_invoice_num(),
+            created_by=current_user.id,
+        )
+        db.session.add(inv)
+
+    if action == "approve":
+        validation_errors = validate_approve(data)
+        if validation_errors:
+            return jsonify({"ok": False, "error": "; ".join(validation_errors)}), 400
+
+    inv.supplier_id = data.get("supplier_id")
+    inv.driver_name = data.get("driver_name", "")
+    inv.driver_contact = data.get("driver_contact", "")
+    inv.vehicle_number = data.get("vehicle_number", "")
+    inv.gate_pass = data.get("gate_pass", "")
+    inv.discount_mode = data.get("discount_mode", "general")
+    inv.expenses_mode = data.get("expenses_mode", "general")
+    inv.tax_mode = data.get("tax_mode", "general")
+
+    inv.global_discount_pct = float(data.get("global_discount_pct", 0))
+    inv.global_discount_value = float(data.get("global_discount_value", 0))
+    inv.global_commission = float(data.get("global_commission", 0))
+    inv.global_freight = float(data.get("global_freight", 0))
+    inv.global_loading = float(data.get("global_loading", 0))
+    inv.global_sales_tax_pct = float(data.get("global_sales_tax_pct", 0))
+    inv.global_withholding_tax_pct = float(data.get("global_withholding_tax_pct", 0))
+    inv.notes = data.get("notes", "")
+    inv.subtotal = float(data.get("subtotal", 0))
+    inv.total_discount = float(data.get("total_discount", 0))
+    inv.total_expenses = float(data.get("total_expenses", 0))
+    inv.total_tax = float(data.get("total_tax", 0))
+    inv.net_payable = float(data.get("net_payable", 0))
+
+    if action == "approve":
+        inv.status = "approved"
+        inv.approved_by = current_user.id
+        inv.approved_at = datetime.utcnow()
+    elif inv.status == "new":
+        inv.status = "unapproved"
+
+    db.session.flush()
+
+    InvPurchaseInvoiceItem.query.filter_by(invoice_id=inv.id).delete()
+    for row in data.get("items", []):
+        item = InvPurchaseInvoiceItem(
+            invoice_id=inv.id,
+            product_id=row.get("product_id"),
+            description=row.get("description", ""),
+            quantity=float(row.get("quantity", 1)),
+            unit=row.get("unit", "pcs"),
+            unit_price=float(row.get("unit_price", 0)),
+            discount_pct=float(row.get("discount_pct", 0)),
+            discount_amount=float(row.get("discount_amount", 0)),
+            commission=float(row.get("commission", 0)),
+            freight=float(row.get("freight", 0)),
+            loading_unloading=float(row.get("loading_unloading", 0)),
+            sales_tax_pct=float(row.get("sales_tax_pct", 0)),
+            withholding_tax_pct=float(row.get("withholding_tax_pct", 0)),
+            total_before_discount=float(row.get("total_before_discount", 0)),
+            total_after_discount=float(row.get("total_after_discount", 0)),
+            comments=row.get("comments", ""),
+        )
+        db.session.add(item)
+
+        if action == "approve" and item.product_id:
+            prod = InvProduct.query.get(item.product_id)
+            if prod:
+                old_stock = prod.current_stock or 0
+                old_cost = prod.cost_price or 0
+                new_qty = item.quantity
+                new_cost = item.unit_price or 0
+                if old_stock + new_qty > 0:
+                    prod.cost_price = round(((old_stock * old_cost) + (new_qty * new_cost)) / (old_stock + new_qty), 4)
+                prod.current_stock = old_stock + new_qty
+                db.session.add(InvStockMovement(
+                    product_id=item.product_id, type="purchase_in",
+                    quantity=item.quantity,
+                    reference_type="purchase_invoice",
+                    reference_id=inv.id,
+                    notes=f"Approved invoice {inv.invoice_number}",
+                    created_by=current_user.id,
+                ))
+
+    db.session.commit()
+    if action == "approve":
+        msg = "approved and locked"
+    elif inv_id:
+        msg = "changes saved"
+    else:
+        msg = "saved as unapproved"
+    return jsonify({"ok": True, "id": inv.id, "status": inv.status,
+                    "voucher": inv.voucher_number, "message": f"Invoice {msg}"})
+
+
+@inv_pinv_bp.route("/unapprove/<int:id>", methods=["POST"])
+@login_required
+def unapprove_invoice(id):
+    inv = InvPurchaseInvoice.query.get_or_404(id)
+    if inv.status != "approved":
+        return jsonify({"ok": False, "error": "Only approved invoices can be unapproved"}), 400
+
+    # Dependency check: has any item been consumed/sold/adjusted?
+    product_ids = [item.product_id for item in inv.items.all() if item.product_id]
+    if product_ids:
+        cons = InvConsumptionItem.query.filter(
+            InvConsumptionItem.product_id.in_(product_ids)
+        ).first()
+        if cons:
+            return jsonify({"ok": False, "error": "Cannot unapprove: Items already consumed"}), 400
+        scrap = InvScrapItem.query.filter(
+            InvScrapItem.product_id.in_(product_ids)
+        ).first()
+        if scrap:
+            return jsonify({"ok": False, "error": "Cannot unapprove: Items already scrapped"}), 400
+        adj = InvStockAdjustmentItem.query.filter(
+            InvStockAdjustmentItem.product_id.in_(product_ids)
+        ).first()
+        if adj:
+            return jsonify({"ok": False, "error": "Cannot unapprove: Items already adjusted"}), 400
+
+    inv.status = "unapproved"
+    inv.approved_by = None
+    inv.approved_at = None
+
+    InvStockMovement.query.filter_by(
+        reference_type="purchase_invoice", reference_id=inv.id
+    ).delete()
+
+    for item in inv.items.all():
+        if item.product_id:
+            prod = InvProduct.query.get(item.product_id)
+            if prod:
+                prod.current_stock -= item.quantity
+
+    db.session.commit()
+    return jsonify({"ok": True, "status": "unapproved",
+                    "message": "Invoice has been unapproved and unlocked for editing"})
+
+
+@inv_pinv_bp.route("/list")
+@login_required
+def list_invoices():
+    invoices = InvPurchaseInvoice.query.order_by(InvPurchaseInvoice.id.desc()).all()
+    return render_template("purchase_invoice/list_inv.html", invoices=invoices)
+
+
+@inv_pinv_bp.route("/api/products")
+@login_required
+def api_products():
+    q = request.args.get("q", "").strip()
+    query = InvProduct.query.filter_by(is_active=True)
+    if q:
+        query = query.filter(
+            db.or_(
+                InvProduct.name.ilike(f"%{q}%"),
+                InvProduct.sku.ilike(f"%{q}%"),
+            )
+        )
+    products = query.order_by(InvProduct.name).limit(20).all()
+    return jsonify([{
+        "id": p.id, "name": p.name, "sku": p.sku,
+        "unit_price": p.unit_price, "current_stock": p.current_stock,
+        "unit": p.unit,
+    } for p in products])
+
+
+@inv_pinv_bp.route("/api/suppliers")
+@login_required
+def api_suppliers():
+    q = request.args.get("q", "").strip()
+    query = InvSupplier.query.filter_by(is_active=True)
+    if q:
+        query = query.filter(InvSupplier.name.ilike(f"%{q}%"))
+    suppliers = query.order_by(InvSupplier.name).limit(20).all()
+    return jsonify([{
+        "id": s.id, "name": s.name, "city": s.city or "",
+        "phone": s.phone or "", "address": s.address or "",
+    } for s in suppliers])
+
+
+@inv_pinv_bp.route("/api/new-product", methods=["POST"])
+@login_required
+def api_new_product():
+    data = request.get_json(force=True)
+    sku = data.get("sku", "").strip()
+    name = data.get("name", "").strip()
+    if not sku or not name:
+        return jsonify({"ok": False, "error": "SKU and Name required"}), 400
+    if InvProduct.query.filter_by(sku=sku).first():
+        return jsonify({"ok": False, "error": "SKU already exists"}), 400
+    p = InvProduct(
+        sku=sku, name=name,
+        unit_price=float(data.get("unit_price", 0)),
+        cost_price=float(data.get("cost_price", 0)),
+        unit=data.get("unit", "pcs"),
+        current_stock=0,
+    )
+    db.session.add(p)
+    db.session.commit()
+    return jsonify({"ok": True, "product": {
+        "id": p.id, "name": p.name, "sku": p.sku,
+        "unit_price": p.unit_price, "current_stock": p.current_stock,
+        "unit": p.unit,
+    }})

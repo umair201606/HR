@@ -1,0 +1,46 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Chart of Accounts{% endblock %}
+{% block page_title %}Chart of Accounts{% endblock %}
+{% block content %}
+<div class="page-header">
+  <a href="{{ url_for('inv_chart_of_accounts.add_account') }}" class="btn btn-primary">+ New Account</a>
+  <a href="{{ url_for('inv_vouchers.product_ledger_list') }}" class="btn btn-outline" style="margin-left:8px;">View Inventory Ledger</a>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr><th>Code</th><th>Name</th><th>Type</th><th>Parent</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for a in accounts %}
+        <tr>
+          <td><strong>{{ a.code }}</strong></td>
+          <td>{{ a.name }}</td>
+          <td><span class="badge badge-{{ a.type }}">{{ a.type|title }}</span></td>
+          <td>{{ a.parent.name if a.parent else '-' }}</td>
+          <td><span class="badge {{ 'badge-success' if a.is_active else 'badge-danger' }}">{{ 'Active' if a.is_active else 'Inactive' }}</span></td>
+          <td class="actions">
+            {% if a.code == '1200' or a.name == 'Inventory' %}
+            <a href="{{ url_for('inv_vouchers.product_ledger_list') }}" class="btn btn-sm btn-link" style="color:#6c63ff;">View Products</a>
+            {% endif %}
+            <a href="{{ url_for('inv_chart_of_accounts.edit_account', id=a.id) }}" class="btn btn-sm btn-outline">Edit</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">No accounts defined</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<style>
+.badge-asset { background:#dbeafe; color:#1e40af; }
+.badge-liability { background:#fef3c7; color:#92400e; }
+.badge-equity { background:#dcfce7; color:#16a34a; }
+.badge-revenue { background:#ede9fe; color:#7c3aed; }
+.badge-expense { background:#fce7f3; color:#db2777; }
+.badge-success { background:#dcfce7; color:#16a34a; }
+.badge-danger { background:#fee2e2; color:#dc2626; }
+</style>
+{% endblock %}

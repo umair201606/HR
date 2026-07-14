@@ -1,0 +1,30 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Stock Valuation Report{% endblock %}
+{% block page_title %}Stock Valuation Report{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header"><strong>All Products</strong></div>
+  <div class="card-body">
+    <table class="table" id="valuation-table">
+      <thead><tr><th>SKU</th><th>Product</th><th>Qty</th><th>Avg Cost</th><th>Value</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.sku }}</td>
+          <td>{{ r.name }}</td>
+          <td>{{ r.qty }} {{ r.unit }}</td>
+          <td>{{ "%.4f"|format(r.avg_cost) }}</td>
+          <td>{{ "%.2f"|format(r.value) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:600;background:#f9fafb;">
+          <td colspan="4" style="text-align:right;">Total Value:</td>
+          <td>{{ "%.2f"|format(total_val) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

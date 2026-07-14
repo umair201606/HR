@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP Login</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+<style>
+body { background:#f0f2f5; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:system-ui,sans-serif; margin:0; }
+.login-card { background:#fff; border-radius:12px; padding:40px; width:380px; max-width:90vw; box-shadow:0 4px 24px rgba(0,0,0,.08); }
+.login-card h1 { font-size:22px; margin:0 0 6px; color:#1a1a2e; }
+.login-card .subtitle { font-size:13px; color:#666; margin-bottom:24px; }
+.form-group { margin-bottom:16px; }
+.form-group label { display:block; font-size:13px; font-weight:600; color:#333; margin-bottom:4px; }
+.form-group input { width:100%; padding:10px 12px; border:1px solid #d0d5dd; border-radius:8px; font-size:14px; box-sizing:border-box; transition:border .2s; }
+.form-group input:focus { border-color:#6c63ff; outline:none; box-shadow:0 0 0 3px rgba(108,99,255,.12); }
+.btn-primary { width:100%; padding:11px; background:#6c63ff; color:#fff; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; transition:background .2s; }
+.btn-primary:hover { background:#5a52d5; }
+.flash { padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:16px; }
+.flash.error { background:#fee2e2; color:#dc2626; border:1px solid #fecaca; }
+.flash.info { background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe; }
+.flash.success { background:#dcfce7; color:#16a34a; border:1px solid #bbf7d0; }
+.demo-info { margin-top:20px; padding:14px; background:#f8f9ff; border-radius:8px; font-size:12px; color:#555; border:1px solid #e8eaff; }
+.demo-info strong { color:#1a1a2e; }
+.demo-info code { background:#eef0ff; padding:1px 5px; border-radius:4px; font-size:11px; }
+</style>
+</head>
+<body>
+<div class="login-card">
+  <h1>Solarkon ERP</h1>
+  <p class="subtitle">Sign in to your account</p>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+  <div class="flash {{ cat }}">{{ msg }}</div>
+  {% endfor %}
+  {% endwith %}
+  <form method="POST">
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" placeholder="you@company.com" required autofocus>
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="Enter password" required>
+    </div>
+    <button type="submit" class="btn-primary">Sign In</button>
+  </form>
+  <div class="demo-info">
+    <strong>Demo Credentials:</strong><br>
+    <code>admin@solarkon.com</code> / <code>admin123</code> (Full Access)<br>
+    <code>mgr@solarkon.com</code> / <code>mgr123</code> (HR + Inventory)<br>
+    <code>emp@solarkon.com</code> / <code>emp123</code> (HR Only)
+  </div>
+</div>
+</body>
+</html>

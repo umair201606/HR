@@ -1,0 +1,32 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Categories{% endblock %}
+{% block page_title %}Categories{% endblock %}
+{% block content %}
+<div class="page-header">
+  <a href="{{ url_for('inv_categories.create_category') }}" class="btn btn-primary">+ New Category</a>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>Name</th><th>Description</th><th>Parent</th><th>Status</th><th>Products</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for cat in categories %}
+        <tr class="{% if not cat.is_active %}inactive-row{% endif %}">
+          <td>{{ cat.name }}</td>
+          <td>{{ cat.description or '-' }}</td>
+          <td>{{ cat.parent.name if cat.parent else '-' }}</td>
+          <td><span class="badge {% if cat.is_active %}badge-success{% else %}badge-secondary{% endif %}">{{ 'Active' if cat.is_active else 'Inactive' }}</span></td>
+          <td>{{ cat.products.count() }}</td>
+          <td class="actions">
+            <a href="{{ url_for('inv_categories.edit_category', id=cat.id) }}" class="btn btn-sm btn-outline">Edit</a>
+            <a href="{{ url_for('inv_categories.delete_category', id=cat.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this category?')">Delete</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">No categories</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

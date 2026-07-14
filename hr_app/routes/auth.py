@@ -18,7 +18,7 @@ def _require_admin():
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("dashboard.hub"))
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
@@ -31,7 +31,7 @@ def login():
             user.last_login = datetime.utcnow()
             db.session.commit()
             next_page = request.args.get("next")
-            return redirect(next_page or url_for("dashboard"))
+            return redirect(next_page or url_for("dashboard.hub"))
         flash("Invalid email or password.", "danger")
     return render_template("login.html")
 
@@ -42,7 +42,6 @@ def logout():
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))
-
 
 @auth_bp.route("/profile")
 @login_required
@@ -110,7 +109,7 @@ def change_password():
         current_user.set_password(new_pw)
         db.session.commit()
         flash("Password changed successfully.", "success")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("dashboard.hub"))
     return render_template("auth/change_password.html")
 
 

@@ -1,0 +1,36 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Stock Movements{% endblock %}
+{% block page_title %}Stock Movements{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-body" style="padding-bottom:8px;">
+    <form method="GET" class="search-form">
+      <select name="product_id" class="form-control focus-ring" style="width:300px;display:inline-block;" onchange="this.form.submit()">
+        <option value="">All Products</option>
+        {% for p in products %}
+        <option value="{{ p.id }}" {% if request.args.get('product_id')|string == p.id|string %}selected{% endif %}>{{ p.name }} ({{ p.sku }})</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>Date</th><th>Product</th><th>Type</th><th>Quantity</th><th>Reference</th><th>Notes</th></tr></thead>
+      <tbody>
+        {% for m in movements %}
+        <tr>
+          <td>{{ m.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>{{ m.product.name }}</td>
+          <td><span class="badge {% if 'in' in m.type %}badge-success{% else %}badge-danger{% endif %}">{{ m.type }}</span></td>
+          <td>{{ m.quantity }}</td>
+          <td>{{ m.reference_type or '-' }} #{{ m.reference_id or '-' }}</td>
+          <td>{{ m.notes or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">No movements</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

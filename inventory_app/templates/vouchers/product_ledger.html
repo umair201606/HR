@@ -1,0 +1,74 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Product Ledger{% endblock %}
+{% block page_title %}Product Ledger{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <form method="GET" class="form-row" style="gap:12px;align-items:flex-end;">
+      <div class="form-group">
+        <label for="product_id">Select Product</label>
+        <select name="product_id" id="product_id" class="form-control" onchange="this.form.submit()">
+          <option value="">-- Choose Product --</option>
+          {% for p in products %}
+          <option value="{{ p.id }}" {{ 'selected' if selected_id==p.id else '' }}>{{ p.name }} ({{ p.sku }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if selected_id %}<a href="{{ url_for('inv_vouchers.product_ledger') }}" class="btn btn-outline">Clear</a>{% endif %}
+    </form>
+  </div>
+</div>
+
+{% if product %}
+<div class="card">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <strong>{{ product.name }}</strong>
+    <span style="font-size:13px;color:#666;">SKU: {{ product.sku }} | Unit: {{ product.unit }}</span>
+  </div>
+  <div class="card-body" style="padding:0;">
+    {% if entries %}
+    <table class="table">
+      <thead><tr>
+        <th>#</th><th>Date</th><th>Voucher Type</th><th>Voucher No.</th>
+        <th>Txn Type</th><th>Qty</th><th>Unit Cost</th>
+        <th>Running Qty</th><th>Running Value</th><th>Avg Cost</th><th>Notes</th>
+      </tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td>{{ e.id }}</td>
+          <td>{{ e.created_at.strftime('%d-%b-%Y') if e.created_at else '' }}</td>
+          <td>{{ e.voucher_type }}</td>
+          <td>
+            {% set vtype_map = {'PI':'inv_purchase_invoice','PR':'inv_purchase_return',
+                                'CONS':'inv_vouchers','SCRAP':'inv_vouchers',
+                                'ADJ':'inv_vouchers'} %}
+            {% set func_map = {'PI':'edit_invoice','PR':'edit_return',
+                               'CONS':'consumption_form','SCRAP':'scrap_form',
+                               'ADJ':'adjustment_form'} %}
+            {% if e.voucher_type in vtype_map %}
+            <a href="{{ url_for('inv_vouchers.voucher_preview', vtype=e.voucher_type, vid=e.voucher_id) }}" target="_blank">
+              {{ e.voucher_number }}
+            </a>
+            {% else %}
+            {{ e.voucher_number }}
+            {% endif %}
+          </td>
+          <td><span class="badge {% if e.transaction_type=='IN' %}badge-success{% else %}badge-danger{% endif %}">{{ e.transaction_type }}</span></td>
+          <td>{{ e.quantity }}</td>
+          <td>{{ "%.4f"|format(e.unit_cost) }}</td>
+          <td>{{ "%.2f"|format(e.running_qty) }}</td>
+          <td>{{ "%.2f"|format(e.running_cost) }}</td>
+          <td>{{ "%.4f"|format(e.running_avg) }}</td>
+          <td>{{ e.notes or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted" style="padding:16px;">No ledger entries for this product.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

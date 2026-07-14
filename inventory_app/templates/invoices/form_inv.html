@@ -1,0 +1,520 @@
+{% extends "layouts/base_inv.html" %}
+{% set status = invoice.status if invoice else 'draft' %}
+{% set is_draft = status == 'draft' %}
+{% set is_approved = status == 'approved' %}
+{% block title %}{{ 'Approved' if is_approved else 'Draft' }} Sales Invoice{% endblock %}
+{% block page_title %}{{ 'Approved' if is_approved else 'Draft' }} Sales Invoice{% endblock %}
+{% block extra_css %}
+<style>
+* { box-sizing: border-box; }
+:root { --qb-bg: #f5f5f5; --qb-card: #fff; --qb-border: #d1d5db; --qb-text: #1f2937; --qb-muted: #6b7280; --qb-light: #9ca3af; --qb-primary: #2563eb; --qb-hover: #1d4ed8; --qb-input-border: #d1d5db; --qb-th-bg: #f3f4f6; --qb-td-hover: #fafafa; }
+body { background: var(--qb-bg); margin: 0; }
+.invoice-wrap { max-width: 1050px; margin: 0 auto; padding: 20px; }
+.section { background: var(--qb-card); margin-bottom: 1px; }
+.section-title { padding: 12px 20px; background: var(--qb-th-bg); border-bottom: 1px solid #e5e7eb; font-size: 12px; font-weight: 600; color: var(--qb-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.section-body { padding: 14px 20px; }
+.grid-3 { display: grid; grid-template-columns: 1.2fr 2fr 1.2fr; gap: 16px; align-items: start; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.qb-label { display: block; font-size: 10px; font-weight: 600; color: var(--qb-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+.qb-input { display: block; width: 100%; padding: 7px 10px; font-size: 13px; color: var(--qb-text); background: #fff; border: 1px solid var(--qb-input-border); outline: none; transition: border-color .15s, box-shadow .15s; }
+.qb-input:focus { border-color: var(--qb-primary); box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
+.qb-input:disabled { background: #f9fafb; color: var(--qb-light); }
+.qb-input.readonly { background: #f9fafb; border-color: #e5e7eb; }
+.text-right { text-align: right; }
+.ac-wrap { position: relative; }
+.ac-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--qb-border); border-top: none; z-index: 100; max-height: 220px; overflow-y: auto; box-shadow: 0 6px 20px rgba(0,0,0,.1); display: none; }
+.ac-dropdown.show { display: block; }
+.ac-item { padding: 8px 12px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
+.ac-item:hover, .ac-item.hl { background: #eff6ff; }
+.ac-item .ac-name { font-weight: 500; color: var(--qb-text); }
+.ac-item .ac-sub { font-size: 11px; color: var(--qb-light); }
+
+/* Toggle group (button-based) */
+.tg { display: inline-flex; gap: 0; }
+.tg-btn { padding: 5px 14px; font-size: 11px; font-weight: 500; color: var(--qb-muted); border: 1px solid var(--qb-input-border); cursor: pointer; background: #fff; user-select: none; transition: all .12s; }
+.tg-btn:first-child { border-radius: 4px 0 0 4px; }
+.tg-btn:last-child { border-radius: 0 4px 4px 0; }
+.tg-btn:not(:last-child) { border-right: none; }
+.tg-btn.active { background: #eff6ff; border-color: var(--qb-primary); color: var(--qb-primary); z-index: 1; }
+.tg-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.tbl-wrap { overflow-x: auto; border: 1px solid #e5e7eb; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 700px; }
+.tbl th { background: var(--qb-th-bg); padding: 7px 5px; font-size: 10px; font-weight: 600; color: var(--qb-muted); text-align: left; border-bottom: 2px solid #e5e7eb; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+.tbl td { padding: 2px 5px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+.tbl tr:hover td { background: var(--qb-td-hover); }
+.tbl .ri { width: 100%; border: 1px solid transparent; padding: 5px 6px; font-size: 12px; background: transparent; outline: none; }
+.tbl .ri:focus { border-color: var(--qb-primary); box-shadow: 0 0 0 2px rgba(37,99,235,.08); outline: none; background: #fff; }
+.tbl .ri:disabled { background: transparent; color: var(--qb-muted); }
+.tbl .ri.rc { font-weight: 600; color: var(--qb-text); border: none; background: transparent; }
+.tbl .rn { width: 22px; text-align: center; color: var(--qb-light); font-size: 10px; }
+.row-actions { display: flex; gap: 2px; justify-content: center; }
+.row-actions button { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--qb-border); background: #fff; color: var(--qb-muted); font-size: 13px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: all .12s; }
+.row-actions button:hover { border-color: var(--qb-primary); color: var(--qb-primary); }
+.row-actions button.del:hover { border-color: #dc2626; color: #dc2626; }
+.bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.bottom-left { padding: 16px 20px; border-right: 1px solid #e5e7eb; }
+.bottom-right { padding: 16px 20px; }
+.summary-line { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+.summary-line .sl { color: var(--qb-muted); }
+.summary-line .sv { font-weight: 600; color: var(--qb-text); text-align: right; min-width: 100px; }
+.summary-line .si { width: 90px; text-align: right; padding: 3px 8px; border: 1px solid var(--qb-input-border); font-size: 13px; font-weight: 600; background: #fff; outline: none; }
+.summary-line .si:focus { border-color: var(--qb-primary); }
+.total-row { border-top: 2px solid var(--qb-text); margin-top: 6px; padding-top: 10px; }
+.total-row .sv { font-size: 18px; font-weight: 800; }
+.action-bar { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 20px; border-top: 1px solid #e5e7eb; }
+.btn-qb { padding: 8px 22px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-primary { background: var(--qb-primary); color: #fff; }
+.btn-primary:hover { background: var(--qb-hover); }
+.btn-outline { background: #fff; color: var(--qb-text); border: 1px solid var(--qb-input-border); }
+.btn-outline:hover { background: #f3f4f6; }
+.btn-danger { background: #dc2626; color: #fff; }
+.badge { display: inline-block; padding: 3px 12px; font-size: 11px; font-weight: 600; border: 1px solid; }
+.badge-draft { background: #f3f4f6; color: var(--qb-muted); border-color: #e5e7eb; }
+.badge-unpaid { background: #fef3c7; color: #92400e; border-color: #f59e0b; }
+.badge-approved { background: #dcfce7; color: #16a34a; border-color: #86efac; }
+.toast-container { position: fixed; top: 16px; right: 16px; z-index: 2000; display: flex; flex-direction: column; gap: 6px; }
+.toast { padding: 10px 18px; color: #fff; font-size: 13px; font-weight: 500; box-shadow: 0 4px 16px rgba(0,0,0,.12); display: flex; align-items: center; gap: 8px; min-width: 240px; }
+.toast-success { background: #059669; }
+.toast-error { background: #dc2626; }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000; justify-content: center; align-items: center; }
+.modal-overlay.show { display: flex; }
+.modal-box { background: #fff; padding: 24px; width: 420px; max-width: 90vw; box-shadow: 0 10px 40px rgba(0,0,0,.15); }
+@media print { .sidebar, .topbar, .action-bar, .toast-container, .ac-dropdown, .btn, .row-actions { display: none !important; } body { background: #fff; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="invoice-wrap">
+  <div class="toast-container" id="toastContainer"></div>
+  <input type="hidden" id="invoiceId" value="{{ invoice.id if invoice else '' }}">
+  <input type="hidden" id="invoiceStatus" value="{{ status }}">
+  <input type="hidden" id="isApproved" value="{{ '1' if is_approved else '0' }}">
+
+  {% if is_approved %}
+  <div style="background:#dcfce7;color:#166534;padding:10px 16px;margin-bottom:16px;font-size:13px;font-weight:600;border:1px solid #86efac;">&#10003; APPROVED — All fields locked</div>
+  {% endif %}
+
+  <div class="section">
+    <div class="section-title">Sales Invoice</div>
+    <div class="section-body">
+      <div class="grid-3">
+        <div>
+          <div class="grid-2" style="gap:8px;">
+            <div><label class="qb-label">Date</label><input type="date" class="qb-input" id="invDate" value="{{ invoice.created_at.strftime('%Y-%m-%d') if invoice else '' }}" {{ 'disabled' if is_approved else '' }}></div>
+            <div><label class="qb-label">Due Date</label><input type="date" class="qb-input" id="dueDate" value="{{ invoice.due_date.strftime('%Y-%m-%d') if invoice and invoice.due_date else '' }}" {{ 'disabled' if is_approved else '' }}></div>
+          </div>
+        </div>
+        <div class="ac-wrap">
+          <label class="qb-label">Customer <span style="color:#dc2626;">*</span></label>
+          <input type="text" class="qb-input" id="customerSearch" placeholder="Type or press Space..." value="{{ invoice.customer.name if invoice else '' }}" autocomplete="off" {{ 'disabled' if is_approved else '' }}>
+          <input type="hidden" id="customerId" value="{{ invoice.customer_id if invoice else '' }}">
+          <div class="ac-dropdown" id="customerDropdown"></div>
+        </div>
+        <div class="text-right">
+          <div><label class="qb-label">Invoice #</label><input type="text" class="qb-input readonly text-right" id="invoiceNumber" readonly value="{{ invoice.invoice_number if invoice else '(auto)' }}"></div>
+          <div style="margin-top:6px;"><label class="qb-label">Status</label><span class="badge badge-{{ status }}" id="statusBadge">{{ status|title }}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Items</div>
+    <div class="section-body" style="padding:8px 0;">
+      <div class="tbl-wrap">
+        <table class="tbl" id="itemsTable">
+          <thead>
+            <tr>
+              <th style="width:22px;">#</th>
+              <th style="min-width:55px;">SKU</th>
+              <th style="min-width:150px;">Description</th>
+              <th style="width:58px;">Qty</th>
+              <th style="width:46px;">Unit</th>
+              <th style="width:78px;">Rate</th>
+              <th class="c-disc" style="width:56px;">Disc %</th>
+              <th class="c-disc" style="width:66px;">Disc Amt</th>
+              <th class="c-tax" style="width:56px;">Tax %</th>
+              <th style="width:82px;">Amount</th>
+              <th style="width:82px;">Net Amt</th>
+              <th style="width:44px;">&#9881;</th>
+            </tr>
+          </thead>
+          <tbody id="itemsBody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid #e5e7eb;background:#fafafa;">
+        <div>
+          <label class="qb-label" style="margin-bottom:2px;font-size:9px;">Discount</label>
+          <div class="tg" id="discountMode">
+            <button type="button" class="tg-btn {{ 'active' if not invoice or invoice.discount_mode == 'general' else '' }}" data-value="general" {{ 'disabled' if is_approved else '' }}>Combined</button>
+            <button type="button" class="tg-btn {{ 'active' if invoice and invoice.discount_mode == 'individual' else '' }}" data-value="individual" {{ 'disabled' if is_approved else '' }}>Per Item</button>
+          </div>
+        </div>
+        <div>
+          <label class="qb-label" style="margin-bottom:2px;font-size:9px;">Tax</label>
+          <div class="tg" id="taxMode">
+            <button type="button" class="tg-btn {{ 'active' if not invoice or invoice.tax_mode == 'general' else '' }}" data-value="general" {{ 'disabled' if is_approved else '' }}>Combined</button>
+            <button type="button" class="tg-btn {{ 'active' if invoice and invoice.tax_mode == 'individual' else '' }}" data-value="individual" {{ 'disabled' if is_approved else '' }}>Per Item</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-body" style="padding:0;">
+      <div class="bottom-grid">
+        <div class="bottom-left">
+          <div id="globalDiscountRow" style="margin-bottom:8px;">
+            <label class="qb-label">Global Discount</label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="number" class="qb-input" id="globalDiscPct" placeholder="%" step="0.01" min="0" max="100" style="width:70px;" value="{{ invoice.global_discount_pct if invoice else '0' }}" {{ 'disabled' if is_approved else '' }}>
+              <input type="number" class="qb-input" id="globalDiscVal" placeholder="Value" step="0.01" min="0" style="width:100px;" value="{{ invoice.global_discount_value if invoice else '0' }}" {{ 'disabled' if is_approved else '' }}>
+            </div>
+          </div>
+          <div id="globalTaxRow">
+            <label class="qb-label">Sales Tax %</label>
+            <input type="number" class="qb-input" id="globalSalesTaxPct" placeholder="%" step="0.01" min="0" max="100" style="width:80px;" value="{{ invoice.global_sales_tax_pct if invoice else '0' }}" {{ 'disabled' if is_approved else '' }}>
+          </div>
+          <div style="margin-top:12px;">
+            <label class="qb-label">Notes</label>
+            <textarea id="invoiceNotes" class="qb-input" rows="2" {{ 'disabled' if is_approved else '' }}>{{ invoice.notes if invoice else '' }}</textarea>
+          </div>
+        </div>
+        <div class="bottom-right">
+          <div class="summary-line"><span class="sl">Subtotal</span><span class="sv" id="summarySubtotal">0.00</span></div>
+          <div class="summary-line"><span class="sl">Discount</span><span class="sv" id="summaryDiscount" style="color:#dc2626;">-0.00</span></div>
+          <div class="summary-line"><span class="sl">Sales Tax</span><span class="sv" id="summarySalesTax">0.00</span></div>
+          <div class="summary-line total-row"><span class="sl" style="font-weight:700;">Total</span><span class="sv" id="summaryTotal" style="font-size:18px;">0.00</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="action-bar">
+      {% if is_draft %}<button class="btn-qb btn-primary" id="saveBtn">&#128190; Save</button>{% endif %}
+      {% if not is_approved and not is_draft %}<button class="btn-qb btn-outline" id="saveChangesBtn">&#128190; Save Changes</button><button class="btn-qb btn-primary" id="approveBtn">&#10003; Approve</button>{% endif %}
+      {% if is_approved %}<button class="btn-qb btn-danger" id="unapproveBtn">&#9888; Unapprove</button><button class="btn-qb btn-outline" onclick="window.print()">&#128424; Print</button>{% endif %}
+      <a href="{{ url_for('inv_invoices.list_invoices') }}" class="btn-qb btn-outline">Cancel</a>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-box">
+    <h3 id="confirmTitle">Confirm</h3>
+    <p id="confirmMsg" style="color:var(--qb-muted);font-size:14px;margin:0 0 16px;"></p>
+    <div class="modal-actions">
+      <button class="btn-qb btn-outline" onclick="closeConfirm()">Cancel</button>
+      <button class="btn-qb btn-primary" id="confirmOkBtn">Yes, Continue</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let allProducts = [], rowCount = 0;
+const isApproved = document.getElementById('isApproved').value === '1';
+const editable = !isApproved;
+var confirmCallback = null;
+
+function qs(s, ctx) { return (ctx || document).querySelector(s); }
+function qsa(s, ctx) { return (ctx || document).querySelectorAll(s); }
+
+function getMode(name) {
+  var tg = document.getElementById(name + 'Mode');
+  if (!tg) return 'general';
+  var active = tg.querySelector('.tg-btn.active');
+  return active ? active.dataset.value : 'general';
+}
+
+function toast(msg, type) {
+  var c = document.getElementById('toastContainer');
+  var t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.innerHTML = msg + '<button style="background:none;border:none;color:inherit;font-size:16px;cursor:pointer;margin-left:auto;padding:0;line-height:1;" onclick="this.parentElement.remove()">&times;</button>';
+  c.appendChild(t);
+  setTimeout(function() { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(function() { t.remove(); }, 300); }, 4000);
+}
+
+function showConfirm(title, msg, cb) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMsg').textContent = msg;
+  document.getElementById('confirmModal').classList.add('show');
+  confirmCallback = cb;
+}
+function closeConfirm() { document.getElementById('confirmModal').classList.remove('show'); confirmCallback = null; }
+document.getElementById('confirmOkBtn').addEventListener('click', function() { closeConfirm(); if (confirmCallback) confirmCallback(); });
+
+async function loadProducts(q) { var r = await fetch('/inventory/invoices/api/products?q=' + encodeURIComponent(q)); return r.json(); }
+async function loadCustomers(q) { var r = await fetch('/inventory/invoices/api/customers?q=' + encodeURIComponent(q)); return r.json(); }
+
+// ============================================================
+// CUSTOMER AUTOCOMPLETE
+// ============================================================
+var custInput = document.getElementById('customerSearch');
+var custDrop = document.getElementById('customerDropdown');
+var custId = document.getElementById('customerId');
+var custHL = -1, custList = [];
+
+function renderCust(list) {
+  custList = list; custHL = -1;
+  if (!list || list.length === 0) { custDrop.classList.remove('show'); return; }
+  custDrop.innerHTML = list.map(function(c, i) {
+    return '<div class="ac-item" data-index="' + i + '" data-id="' + c.id + '" data-name="' + c.name.replace(/'/g,"\\'") + '">' +
+      '<span class="ac-name">' + c.name + '</span><span class="ac-sub">' + (c.city || '') + ' ' + (c.phone || '') + '</span></div>';
+  }).join('');
+  custDrop.classList.add('show');
+}
+
+custInput.addEventListener('keydown', async function(e) {
+  if (!editable) return;
+  if (e.key === ' ') { e.preventDefault(); renderCust(await loadCustomers('')); return; }
+  if (e.key === 'ArrowDown') { e.preventDefault(); custHL = Math.min(custHL + 1, custList.length - 1); hlCust(); return; }
+  if (e.key === 'ArrowUp') { e.preventDefault(); custHL = Math.max(custHL - 1, 0); hlCust(); return; }
+  if (e.key === 'Enter' && custDrop.classList.contains('show') && custHL >= 0 && custList[custHL]) { selectCust(custList[custHL].id, custList[custHL].name); return; }
+  if (e.key === 'Escape') { custDrop.classList.remove('show'); return; }
+});
+custInput.addEventListener('input', async function() {
+  if (!editable) return;
+  var q = this.value.trim(); if (q.length === 0) { custDrop.classList.remove('show'); return; }
+  renderCust(await loadCustomers(q));
+});
+custInput.addEventListener('blur', function() { setTimeout(function() { custDrop.classList.remove('show'); }, 200); });
+function hlCust() { custDrop.querySelectorAll('.ac-item').forEach(function(el, i) { el.classList.toggle('hl', i === custHL); }); }
+function selectCust(id, name) { custId.value = id; custInput.value = name; custDrop.classList.remove('show'); }
+
+// ============================================================
+// TOGGLES (button-based)
+// ============================================================
+qsa('.tg-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    if (this.disabled) return;
+    var tg = this.closest('.tg');
+    tg.querySelectorAll('.tg-btn').forEach(function(b) { b.classList.remove('active'); });
+    this.classList.add('active');
+    refreshCols(); recalc();
+  });
+});
+
+function refreshCols() {
+  var d = getMode('discount'), t = getMode('tax');
+  var id = d === 'individual', it = t === 'individual';
+  qsa('.c-disc').forEach(function(el) { el.style.display = id ? '' : 'none'; });
+  qsa('.c-tax').forEach(function(el) { el.style.display = it ? '' : 'none'; });
+  document.getElementById('globalDiscountRow').style.display = id ? 'none' : '';
+  document.getElementById('globalTaxRow').style.display = it ? 'none' : '';
+  qsa('#itemsBody tr').forEach(function(tr) {
+    qsa('.row-disc input', tr).forEach(function(i) { i.disabled = !id || !editable; });
+    qsa('.row-tax input', tr).forEach(function(i) { i.disabled = !it || !editable; });
+  });
+}
+
+// ============================================================
+// PRODUCT ROW AUTOCOMPLETE
+// ============================================================
+function setupDescInput(inp) {
+  var row = inp.closest('tr'), drop = row.querySelector('.ac-dropdown'), hl = -1, list = [];
+  function render(l) {
+    hl = -1; if (!l || l.length === 0) { drop.classList.remove('show'); return; }
+    drop.innerHTML = l.map(function(p, i) {
+      return '<div class="ac-item" data-index="' + i + '" data-id="' + p.id + '" data-name="' + p.name + '" data-sku="' + p.sku + '" data-price="' + p.unit_price + '" data-stock="' + p.current_stock + '" data-unit="' + p.unit + '">' +
+        '<span class="ac-name">' + p.name + '</span><span class="ac-sub">' + p.sku + ' &bull; Stock: ' + p.current_stock + '</span></div>';
+    }).join('');
+    drop.classList.add('show');
+  }
+  inp.addEventListener('keydown', async function(e) {
+    if (e.key === ' ') { e.preventDefault(); list = await loadProducts(''); render(list); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); hl = Math.min(hl + 1, list.length - 1); highlight(); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); hl = Math.max(hl - 1, 0); highlight(); return; }
+    if (e.key === 'Enter') {
+      if (drop.classList.contains('show') && hl >= 0 && list[hl]) { selectProd(hl); return; }
+      var inputs = row.querySelectorAll('.ri:not(:disabled):not(.rc)');
+      if (e.target === inputs[inputs.length - 1]) { e.preventDefault(); if (isLastRowEmpty()) addRow({}); var nr = document.getElementById('itemsBody').lastElementChild; var ni = nr.querySelectorAll('.ri:not(:disabled):not(.rc)'); if (ni.length > 0) ni[0].focus(); }
+      return;
+    }
+    if (e.key === 'Escape') { drop.classList.remove('show'); return; }
+  });
+  inp.addEventListener('input', async function() { var q = this.value.trim(); if (q.length === 0) { drop.classList.remove('show'); return; } list = await loadProducts(q); render(list); });
+  inp.addEventListener('blur', function() { setTimeout(function() { drop.classList.remove('show'); }, 200); });
+  function highlight() { drop.querySelectorAll('.ac-item').forEach(function(el, i) { el.classList.toggle('hl', i === hl); }); }
+  function selectProd(idx) {
+    var p = list[idx]; if (!p) return;
+    row.dataset.productId = p.id; row.querySelector('.ac-code').value = p.sku; inp.value = p.name;
+    row.querySelector('.ac-unit').textContent = p.unit; row.querySelector('[data-col="unit_price"]').value = p.unit_price;
+    row.querySelector('.info-badge').innerHTML = 'Stock: <strong>' + p.current_stock + '</strong>';
+    drop.classList.remove('show'); recalcRow(row); recalc();
+    var qtyInput = row.querySelector('[data-col="quantity"]'); if (qtyInput) qtyInput.focus();
+  }
+  drop.addEventListener('mousedown', function(e) { var item = e.target.closest('.ac-item'); if (!item) return; hl = parseInt(item.dataset.index); selectProd(hl); });
+}
+
+// ============================================================
+// ADD / REMOVE ROWS
+// ============================================================
+function addRow(data) {
+  var tbody = document.getElementById('itemsBody'), tr = document.createElement('tr'); rowCount++;
+  var d = getMode('discount'), t = getMode('tax');
+  var id = d === 'individual', it = t === 'individual', dis = editable ? '' : 'disabled';
+  tr.dataset.productId = (data && data.product_id) || '';
+  tr.innerHTML =
+    '<td class="rn">' + rowCount + '</td>' +
+    '<td><input type="text" class="ri ac-code" data-col="code" placeholder="SKU" value="' + ((data && data.product && data.product.sku) || '') + '" ' + dis + '></td>' +
+    '<td><div class="ac-wrap"><input type="text" class="ri ac-desc-input" data-col="description" placeholder="Search or Space..." value="' + ((data && data.description) || '') + '" ' + dis + '><div class="ac-dropdown"></div><div class="info-badge" style="font-size:10px;color:var(--qb-light);"></div></div></td>' +
+    '<td><input type="number" class="ri" data-col="quantity" value="' + ((data && data.quantity) || 1) + '" min="0.01" step="any" ' + dis + '></td>' +
+    '<td><span class="ri rc ac-unit" style="border:none;">' + ((data && data.unit) || 'pcs') + '</span></td>' +
+    '<td><input type="number" class="ri" data-col="unit_price" value="' + ((data && data.unit_price) || 0) + '" step="0.01" min="0" ' + dis + '></td>' +
+    '<td class="c-disc" style="' + (id ? '' : 'display:none;') + '"><div class="row-disc"><input type="number" class="ri" data-col="discount_pct" value="' + ((data && data.discount_pct) || 0) + '" step="0.01" min="0" max="100" ' + (editable && id ? '' : 'disabled') + '></div></td>' +
+    '<td class="c-disc" style="' + (id ? '' : 'display:none;') + '"><div class="row-disc"><input type="number" class="ri" data-col="discount_amount" value="' + ((data && data.discount_amount) || 0) + '" step="0.01" min="0" ' + (editable && id ? '' : 'disabled') + '></div></td>' +
+    '<td class="c-tax" style="' + (it ? '' : 'display:none;') + '"><div class="row-tax"><input type="number" class="ri" data-col="sales_tax_pct" value="' + ((data && data.sales_tax_pct) || 0) + '" step="0.01" min="0" max="100" ' + (editable && it ? '' : 'disabled') + '></div></td>' +
+    '<td><input type="text" class="ri rc" data-col="total_before_discount" value="0" readonly></td>' +
+    '<td><input type="text" class="ri rc" data-col="total_after_discount" value="0" readonly></td>' +
+    '<td><div class="row-actions">' + (editable ? '<button class="add" onclick="addRowAfter(this)" title="Add">+</button><button class="del" onclick="removeRow(this)" title="Remove">&minus;</button>' : '') + '</div></td>';
+  tbody.appendChild(tr);
+  var descInput = tr.querySelector('.ac-desc-input'); if (descInput) setupDescInput(descInput);
+  tr.querySelectorAll('input[data-col]').forEach(function(inp) { inp.addEventListener('input', function() { recalcRow(tr); recalc(); }); inp.addEventListener('change', function() { recalcRow(tr); recalc(); }); });
+  var codeInput = tr.querySelector('.ac-code');
+  if (codeInput) {
+    codeInput.addEventListener('input', function() {
+      if (this.value.length === 1 && isLastRowEmpty()) addRow({});
+      var match = allProducts.find(function(p) { return p.sku.toLowerCase() === this.value.trim().toLowerCase(); }.bind(this));
+      if (match) {
+        tr.dataset.productId = match.id; tr.querySelector('.ac-desc-input').value = match.name; tr.querySelector('.ac-unit').textContent = match.unit;
+        tr.querySelector('[data-col="unit_price"]').value = match.unit_price; tr.querySelector('.info-badge').innerHTML = 'Stock: <strong>' + match.current_stock + '</strong>';
+        recalcRow(tr); recalc();
+      }
+    });
+  }
+  if (editable) setTimeout(function() { var f = tr.querySelector('.ac-code'); if (f) f.focus(); }, 30);
+  return tr;
+}
+
+function addRowAfter(btn) { var r = btn.closest('tr'); var nr = addRow({ product_id: r.dataset.productId }); if (nr) { var f = nr.querySelector('.ac-code'); if (f) f.focus(); } }
+function removeRow(btn) { var tr = btn.closest('tr'); var tbody = document.getElementById('itemsBody'); if (tbody.children.length <= 1) return; tr.remove(); qsa('#itemsBody .rn').forEach(function(el, i) { el.textContent = i + 1; }); recalc(); }
+function isLastRowEmpty() { var rows = qsa('#itemsBody tr'); if (rows.length === 0) return true; var l = rows[rows.length - 1]; return (l.querySelector('.ac-code')?.value || '') === '' && (l.querySelector('.ac-desc-input')?.value || '') === ''; }
+
+// ============================================================
+// CALCULATIONS
+// ============================================================
+function recalcRow(tr) {
+  var qty = parseFloat(tr.querySelector('[data-col="quantity"]')?.value) || 0;
+  var price = parseFloat(tr.querySelector('[data-col="unit_price"]')?.value) || 0;
+  var totalBef = qty * price;
+  var tb = tr.querySelector('[data-col="total_before_discount"]'); if (tb) tb.value = totalBef.toFixed(2);
+  var discPct = parseFloat(tr.querySelector('[data-col="discount_pct"]')?.value) || 0;
+  var discAmtInput = tr.querySelector('[data-col="discount_amount"]');
+  var discAmt = parseFloat(discAmtInput?.value) || 0;
+  if (discPct > 0 && discAmt === 0) { discAmt = totalBef * discPct / 100; if (discAmtInput) discAmtInput.value = discAmt.toFixed(2); }
+  var totalAft = Math.max(0, totalBef - discAmt);
+  var ta = tr.querySelector('[data-col="total_after_discount"]'); if (ta) ta.value = totalAft.toFixed(2);
+}
+
+function recalc() {
+  var subtotal = 0, totalDisc = 0, totalTax = 0;
+  var d = getMode('discount'), t = getMode('tax');
+  qsa('#itemsBody tr').forEach(function(tr) {
+    var tb = parseFloat(tr.querySelector('[data-col="total_before_discount"]')?.value) || 0;
+    var ta = parseFloat(tr.querySelector('[data-col="total_after_discount"]')?.value) || 0;
+    subtotal += tb;
+    if (d === 'individual') {
+      var damt = parseFloat(tr.querySelector('[data-col="discount_amount"]')?.value) || 0;
+      var dpct = parseFloat(tr.querySelector('[data-col="discount_pct"]')?.value) || 0;
+      totalDisc += damt > 0 ? damt : (tb * dpct / 100);
+    }
+    if (t === 'individual') { var st = parseFloat(tr.querySelector('[data-col="sales_tax_pct"]')?.value) || 0; totalTax += ta * st / 100; }
+  });
+  subtotal = Math.round(subtotal * 100) / 100;
+  document.getElementById('summarySubtotal').textContent = subtotal.toFixed(2);
+  if (d === 'general') { var gPct = parseFloat(document.getElementById('globalDiscPct').value) || 0; var gVal = parseFloat(document.getElementById('globalDiscVal').value) || 0; totalDisc = gVal > 0 ? gVal : (subtotal * gPct / 100); }
+  document.getElementById('summaryDiscount').textContent = '-' + totalDisc.toFixed(2);
+  var taxBase = subtotal - totalDisc;
+  if (t === 'general') { var stPct = parseFloat(document.getElementById('globalSalesTaxPct').value) || 0; totalTax = taxBase * stPct / 100; }
+  document.getElementById('summarySalesTax').textContent = totalTax.toFixed(2);
+  document.getElementById('summaryTotal').textContent = (taxBase + totalTax).toFixed(2);
+}
+
+// ============================================================
+// SAVE / APPROVE / UNAPPROVE
+// ============================================================
+function collectData() {
+  var items = [];
+  qsa('#itemsBody tr').forEach(function(tr) {
+    items.push({
+      product_id: tr.dataset.productId || null, description: tr.querySelector('.ac-desc-input')?.value || '',
+      quantity: parseFloat(tr.querySelector('[data-col="quantity"]')?.value) || 0, unit: tr.querySelector('.ac-unit')?.textContent || 'pcs',
+      unit_price: parseFloat(tr.querySelector('[data-col="unit_price"]')?.value) || 0,
+      discount_pct: parseFloat(tr.querySelector('[data-col="discount_pct"]')?.value) || 0,
+      discount_amount: parseFloat(tr.querySelector('[data-col="discount_amount"]')?.value) || 0,
+      sales_tax_pct: parseFloat(tr.querySelector('[data-col="sales_tax_pct"]')?.value) || 0,
+      total_before_discount: parseFloat(tr.querySelector('[data-col="total_before_discount"]')?.value) || 0,
+      total_after_discount: parseFloat(tr.querySelector('[data-col="total_after_discount"]')?.value) || 0,
+    });
+  });
+  return {
+    id: document.getElementById('invoiceId').value || null, invoice_number: document.getElementById('invoiceNumber').value,
+    customer_id: parseInt(document.getElementById('customerId').value) || null, due_date: document.getElementById('dueDate').value || '',
+    discount_mode: getMode('discount'), tax_mode: getMode('tax'),
+    global_discount_pct: parseFloat(document.getElementById('globalDiscPct').value) || 0,
+    global_discount_value: parseFloat(document.getElementById('globalDiscVal').value) || 0,
+    global_sales_tax_pct: parseFloat(document.getElementById('globalSalesTaxPct').value) || 0,
+    subtotal: parseFloat(document.getElementById('summarySubtotal').textContent) || 0,
+    total_discount: parseFloat(document.getElementById('summaryDiscount').textContent.replace('-','')) || 0,
+    total_tax: parseFloat(document.getElementById('summarySalesTax').textContent) || 0,
+    total_amount: parseFloat(document.getElementById('summaryTotal').textContent) || 0,
+    notes: document.getElementById('invoiceNotes').value, items: items,
+  };
+}
+
+async function saveInvoice(action) {
+  var data = collectData();
+  if (!data.customer_id) { toast('Please select a customer', 'error'); return; }
+  if (data.items.length === 0) { toast('Add at least one item', 'error'); return; }
+  data.action = action;
+  var r = await fetch('/inventory/invoices/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+  var res = await r.json();
+  if (!res.ok) { toast(res.error || 'Save failed', 'error'); return; }
+  toast(res.message, 'success');
+  document.getElementById('invoiceId').value = res.id; document.getElementById('invoiceNumber').value = res.number;
+  var badge = document.getElementById('statusBadge');
+  if (badge) { badge.className = 'badge badge-' + res.status; badge.textContent = res.status.charAt(0).toUpperCase() + res.status.slice(1); }
+  setTimeout(function() { window.location.href = '/inventory/invoices/' + res.id; }, action === 'approve' ? 1500 : 800);
+}
+
+async function unapproveInvoice() {
+  var id = document.getElementById('invoiceId').value; if (!id) return;
+  document.getElementById('unapproveBtn').disabled = true; document.getElementById('unapproveBtn').textContent = 'Processing...';
+  var r = await fetch('/inventory/invoices/unapprove/' + id, { method: 'POST' });
+  var res = await r.json();
+  if (!res.ok) { toast(res.error, 'error'); document.getElementById('unapproveBtn').disabled = false; document.getElementById('unapproveBtn').textContent = '\u26A0 Unapprove'; return; }
+  toast(res.message, 'success'); setTimeout(function() { window.location.href = '/inventory/invoices/' + id; }, 1000);
+}
+
+document.getElementById('saveBtn')?.addEventListener('click', function() { saveInvoice('save'); });
+document.getElementById('saveChangesBtn')?.addEventListener('click', function() { saveInvoice('save'); });
+document.getElementById('approveBtn')?.addEventListener('click', function() { showConfirm('Approve Invoice', 'Once approved, stock will be deducted and the invoice locked. Proceed?', function() { saveInvoice('approve'); }); });
+document.getElementById('unapproveBtn')?.addEventListener('click', function() { showConfirm('Unapprove Invoice', 'This will restore stock and unlock the invoice. Proceed?', unapproveInvoice); });
+['globalDiscPct','globalDiscVal','globalSalesTaxPct'].forEach(function(id) { var el = document.getElementById(id); if (el) el.addEventListener('input', recalc); });
+
+// Set default time
+(function() {
+  var d = document.getElementById('invDate');
+  if (d && !d.value) { var n = new Date(); d.value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') + '-' + String(n.getDate()).padStart(2,'0'); }
+})();
+
+(async function init() {
+  try { allProducts = await loadProducts(''); } catch(e) { console.warn('Product load failed', e); }
+  {% if invoice %}
+  try {
+    var items = {{ invoice.items.all()|tojson if invoice else '[]' }};
+    if (items.length === 0) addRow({}); else items.forEach(function(item) { addRow({ product_id: item.product_id, description: item.description, quantity: item.quantity, unit: item.unit, unit_price: item.unit_price, discount_pct: item.discount_pct, discount_amount: item.discount_amount, sales_tax_pct: item.sales_tax_pct, product: allProducts.find(function(p) { return p.id === item.product_id; }) }); });
+  } catch(e) { console.warn('Items load failed', e); addRow({}); }
+  {% else %}
+  addRow({});
+  {% endif %}
+  refreshCols(); recalc();
+})();
+</script>
+{% endblock %}

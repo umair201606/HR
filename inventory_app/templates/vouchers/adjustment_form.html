@@ -1,0 +1,127 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}{{ 'Edit' if voucher else 'New' }} Stock Adjustment{% endblock %}
+{% block page_title %}{{ 'Edit: '+voucher.voucher_number if voucher else 'New Stock Adjustment' }}{% endblock %}
+{% block content %}
+<form method="POST" class="voucher-form">
+  <div class="card">
+    <div class="card-body">
+      <div class="form-group">
+        <label>Reason</label>
+        <textarea name="reason" class="form-control" rows="2" required>{{ voucher.reason if voucher else '' }}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select name="status" class="form-control">
+          <option value="draft" {{ 'selected' if voucher and voucher.status=='draft' else '' }}>Draft</option>
+          <option value="approved" {{ 'selected' if voucher and voucher.status=='approved' else '' }}>Approved</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><strong>Items</strong> <span class="badge badge-info" style="background:#8b5cf6;">Adjustment</span></div>
+    <div class="card-body">
+      <table class="table" id="items-table">
+        <thead><tr><th>Product</th><th>System Qty</th><th>Physical Qty</th><th>Diff</th><th>Unit Cost</th><th>Total</th><th></th></tr></thead>
+        <tbody id="items-body">
+          {% if voucher %}
+          {% for item in voucher.items %}
+          <tr>
+            <td><input type="hidden" name="product_id[]" value="{{ item.product_id }}"><input type="text" class="form-control product-auto" value="{{ item.product_name }}" readonly></td>
+            <td><input type="number" step="any" name="system_qty[]" class="form-control sys-qty" value="{{ item.system_qty }}"></td>
+            <td><input type="number" step="any" name="physical_qty[]" class="form-control phys-qty" value="{{ item.physical_qty }}"></td>
+            <td><input type="text" class="form-control diff-display" value="{{ item.difference }}" readonly></td>
+            <td><input type="text" class="form-control cost-display" value="{{ item.unit_cost }}" readonly></td>
+            <td><input type="text" class="form-control total-display" value="{{ item.total_cost }}" readonly></td>
+            <td><button type="button" class="btn btn-sm btn-danger" onclick="this.closest('tr').remove()">X</button></td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+      <button type="button" class="btn btn-outline" onclick="addRow()">+ Add Item</button>
+    </div>
+  </div>
+
+  {% if not voucher or voucher.status != 'approved' %}
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary" onclick="this.form.status.value='draft'">Save as Draft</button>
+    <button type="submit" class="btn btn-success" onclick="this.form.status.value='approved'">Save & Approve</button>
+    <a href="{{ url_for('inv_vouchers.adjustment_list') }}" class="btn btn-outline">Cancel</a>
+  </div>
+  {% endif %}
+</form>
+
+<script>
+function addRow(data) {
+  data = data || {};
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td><input type="hidden" name="product_id[]" value="'+(data.id||'')+'">'
+    + '<input type="text" class="form-control product-auto" placeholder="Search..." data-id="'+(data.id||'')+'" value="'+(data.name||'')+'"></td>'
+    + '<td><input type="number" step="any" name="system_qty[]" class="form-control sys-qty" value="'+(data.sys||'')+'"></td>'
+    + '<td><input type="number" step="any" name="physical_qty[]" class="form-control phys-qty" value="'+(data.phys||'')+'"></td>'
+    + '<td><input type="text" class="form-control diff-display" readonly value="0"></td>'
+    + '<td><input type="text" class="form-control cost-display" readonly value="0"></td>'
+    + '<td><input type="text" class="form-control total-display" readonly value="0"></td>'
+    + '<td><button type="button" class="btn btn-sm btn-danger" onclick="this.closest(\'tr\').remove()">X</button></td>';
+  document.getElementById('items-body').appendChild(tr);
+  attachAutocomplete(tr.querySelector('.product-auto'));
+}
+function attachAutocomplete(el) {
+  var timer;
+  el.addEventListener('input', function() {
+    clearTimeout(timer);
+    var val = this.value;
+    timer = setTimeout(function() {
+      if(val.length < 2) return;
+      fetch('/inventory/vouchers/api/products?q='+encodeURIComponent(val))
+        .then(r=>r.json()).then(data => {
+          if(data.length === 1) { selectProduct(el, data[0]); return; }
+          var list = document.createElement('datalist');
+          list.id = 'suggest-'+Date.now();
+          data.forEach(p => {
+            var opt = document.createElement('option');
+            opt.value = p.name + ' ('+p.sku+')';
+            opt.dataset.id = p.id;
+            opt.dataset.stock = p.stock;
+            list.appendChild(opt);
+          });
+          document.body.appendChild(list);
+          el.setAttribute('list', list.id);
+        });
+    }, 300);
+  });
+  el.addEventListener('change', function() {
+    var opt = document.querySelector('option[value="'+this.value+'"]');
+    if(opt) selectProduct(this, {id:opt.dataset.id, name:this.value});
+  });
+}
+function selectProduct(el, p) {
+  el.value = p.name;
+  el.dataset.id = p.id;
+  el.closest('tr').querySelector('[name="product_id[]"]').value = p.id;
+  var tr = el.closest('tr');
+  fetch('/inventory/vouchers/api/product-stock/'+p.id)
+    .then(r=>r.json()).then(d => {
+      tr.querySelector('.sys-qty').value = d.qty;
+      tr.querySelector('.cost-display').value = d.cost;
+    });
+}
+document.querySelector('#items-body').addEventListener('input', function(e) {
+  if(e.target.classList.contains('sys-qty')||e.target.classList.contains('phys-qty')) {
+    var tr = e.target.closest('tr');
+    var sys = parseFloat(tr.querySelector('.sys-qty').value)||0;
+    var phys = parseFloat(tr.querySelector('.phys-qty').value)||0;
+    var cost = parseFloat(tr.querySelector('.cost-display').value)||0;
+    tr.querySelector('.diff-display').value = phys - sys;
+    tr.querySelector('.total-display').value = Math.abs(phys-sys)*cost;
+  }
+});
+document.addEventListener('DOMContentLoaded', function() {
+  var existing = document.querySelectorAll('.product-auto');
+  existing.forEach(function(el) { attachAutocomplete(el); });
+  if (existing.length === 0) addRow({});
+});
+</script>
+{% endblock %}

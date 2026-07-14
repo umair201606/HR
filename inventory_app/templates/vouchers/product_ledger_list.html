@@ -1,0 +1,29 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Inventory Ledger{% endblock %}
+{% block page_title %}Inventory Ledger{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header"><strong>Account: 1200 - Inventory (Product Sub-Ledgers)</strong></div>
+  <div class="card-body" style="padding:0;">
+    {% if rows %}
+    <table class="table">
+      <thead><tr><th>SKU</th><th>Product Name</th><th>Qty</th><th>Avg Cost</th><th>Value</th><th></th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.sku }}</td>
+          <td>{{ r.name }}</td>
+          <td>{{ r.qty }} {{ r.unit }}</td>
+          <td>{{ "%.4f"|format(r.cost) }}</td>
+          <td>{{ "%.2f"|format(r.value) }}</td>
+          <td><a href="{{ url_for('inv_vouchers.product_ledger', product_id=r.id) }}" class="btn btn-sm btn-outline">View Ledger</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted" style="padding:16px;">No products found.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

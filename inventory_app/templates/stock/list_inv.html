@@ -1,0 +1,51 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Stock{% endblock %}
+{% block page_title %}Stock{% endblock %}
+{% block content %}
+<div class="page-header">
+  <a href="{{ url_for('inv_stock.list_movements') }}" class="btn btn-outline">View Movements</a>
+</div>
+<div class="card">
+  <div class="card-body" style="padding-bottom:8px;">
+    <form method="GET" class="search-form">
+      <input type="text" name="q" class="form-control focus-ring" placeholder="Search..." value="{{ request.args.get('q','') }}">
+      <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" name="low_only" value="1" {% if request.args.get('low_only') == '1' %}checked{% endif %} onchange="this.form.submit()">
+        Low stock only
+      </label>
+      <button type="submit" class="btn btn-outline">Search</button>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Stock</th><th>Reorder</th><th>Value</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for p in products %}
+        <tr class="{% if p.current_stock <= p.reorder_level and p.reorder_level > 0 %}table-danger{% endif %}">
+          <td><strong>{{ p.sku }}</strong></td>
+          <td><a href="{{ url_for('inv_products.edit_product', id=p.id) }}">{{ p.name }}</a></td>
+          <td>{{ p.category.name if p.category else '-' }}</td>
+          <td>
+            <span class="badge {% if p.current_stock <= p.reorder_level and p.reorder_level > 0 %}badge-danger{% else %}badge-success{% endif %}">{{ p.current_stock }}</span>
+          </td>
+          <td>{{ p.reorder_level }}</td>
+          <td>{{ "%.2f"|format(p.current_stock * p.cost_price) }}</td>
+          <td>
+            {% if p.current_stock <= p.reorder_level and p.reorder_level > 0 %}
+            <span class="badge badge-danger">Low Stock</span>
+            {% else %}
+            <span class="badge badge-success">OK</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('inv_products.adjust_stock', id=p.id) }}" class="btn btn-sm btn-outline">Adjust</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="empty">No products</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

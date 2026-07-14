@@ -1,21 +1,10 @@
-import os
 from datetime import date, timedelta
-from flask import Flask, render_template, redirect, url_for, flash, request
+from flask import render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
-from .config import Config
-from .extensions import db, login_manager, principals, csrf
-from .models.user import Role, Permission
+from shared.extensions import db
 
 
-def create_app():
-    app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), "static"), static_url_path="/static")
-    app.config.from_object(Config)
-
-    db.init_app(app)
-    login_manager.init_app(app)
-    principals.init_app(app)
-    csrf.init_app(app)
-
+def register_hr_blueprints(app):
     from .routes.auth import auth_bp
     from .routes.attendance import attendance_bp
     from .routes.leave import leave_bp
@@ -42,19 +31,13 @@ def create_app():
     app.register_blueprint(comm_bp)
     app.register_blueprint(pf_bp)
 
-    @app.route("/")
-    def index():
-        if current_user.is_authenticated:
-            return redirect(url_for("dashboard"))
-        return redirect(url_for("auth.login"))
-
     @app.route("/dashboard")
     @login_required
     def dashboard():
         chart_data = []
         if current_user.is_admin() or current_user.is_manager():
             from .models.attendance import Attendance
-            from .models.user import User
+            from shared.models.base import User
             from sqlalchemy import func, extract, case
             import calendar
             if db.engine.name == "sqlite":
@@ -76,11 +59,9 @@ def create_app():
             for r in yearly:
                 wk = int(r.week)
                 yr = int(r.year)
-                # SQLite %W week: week 1 starts on first Monday of the year
                 jan1 = date(yr, 1, 1)
                 first_monday = jan1 + timedelta(days=(7 - jan1.weekday()) % 7)
                 monday = first_monday + timedelta(weeks=wk - 1)
-                # Count weekdays (Mon-Fri) in that week
                 weekdays = sum(1 for d in range(7) if (monday + timedelta(days=d)).weekday() < 5)
                 possible = emp_count * weekdays
                 pct = round((int(r.total) / possible) * 100, 1) if possible else 0
@@ -114,7 +95,6 @@ def create_app():
             "leave.holidays": "leave.index",
             "leave.workflows": "leave.index",
             "timesheet.projects": "timesheet.index",
-            "timesheet.merge_report": "timesheet.index",
             "timesheet.merge_report": "timesheet.index",
             "ess.loans": "ess.index",
             "ess.slips": "ess.index",
@@ -159,35 +139,6 @@ def create_app():
         tb = traceback.format_exc()
         return f"<pre style='background:#fef2f2;padding:20px;border:2px solid #ef4444;border-radius:8px;font-size:13px;overflow:auto;max-height:90vh;'>{tb}</pre>", 500
 
-    with app.app_context():
-        db.create_all()
-        Role.seed()
-        Permission.seed()
-        from .models.user import User
-        if not User.query.first():
-            admin_role = Role.query.filter_by(name=Role.ADMIN).first()
-            mgr_role = Role.query.filter_by(name=Role.MANAGER).first()
-            emp_role = Role.query.filter_by(name=Role.EMPLOYEE).first()
-            admin = User(employee_code="ADM001", email="admin@solarkon.com",
-                         full_name="Admin User", designation="HR Director",
-                         department="Human Resources", role_id=admin_role.id,
-                         date_of_joining=date.today(), is_active=True)
-            admin.set_password("admin123")
-            db.session.add(admin)
-            mgr = User(employee_code="MGR001", email="manager@solarkon.com",
-                       full_name="Manager User", designation="Team Lead",
-                       department="Engineering", role_id=mgr_role.id,
-                       manager_id=1, date_of_joining=date.today(), is_active=True)
-            mgr.set_password("mgr123")
-            db.session.add(mgr)
-            emp = User(employee_code="EMP001", email="john.doe@solarkon.com",
-                       full_name="John Doe", designation="Software Engineer",
-                       department="Engineering", role_id=emp_role.id,
-                       manager_id=2, date_of_joining=date.today(), is_active=True)
-            emp.set_password("emp123")
-            db.session.add(emp)
-        db.session.commit()
-
     return app
 
 
@@ -195,6 +146,6 @@ if __name__ == "__main__":
     app = create_app()
     app.config["TEMPLATES_AUTO_RELOAD"] = True
     host = os.environ.get("HOST", "127.0.0.1")
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 0))
     debug = os.environ.get("DEBUG", "0") == "1"
     app.run(host=host, port=port, debug=debug)

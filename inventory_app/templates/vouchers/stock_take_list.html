@@ -1,0 +1,30 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Stock Takes{% endblock %}
+{% block page_title %}Stock Takes{% endblock %}
+{% block content %}
+<a href="{{ url_for('inv_vouchers.stock_take_form') }}" class="btn btn-primary" style="margin-bottom:1rem;">+ New Stock Take</a>
+{% if takes %}
+<table class="table">
+  <thead><tr><th>#</th><th>Reference</th><th>Date</th><th>Location</th><th>Items</th><th>Status</th><th>Adjustment</th><th>Actions</th></tr></thead>
+  <tbody>
+    {% for st in takes %}
+    <tr>
+      <td>{{ st.id }}</td>
+      <td><a href="{{ url_for('inv_vouchers.stock_take_form', id=st.id) }}">{{ st.reference }}</a></td>
+      <td>{{ st.date.strftime('%Y-%m-%d') if st.date else '' }}</td>
+      <td>{{ st.location }}</td>
+      <td>{{ st.items|length }}</td>
+      <td><span class="badge {% if st.status=='approved' %}badge-success{% else %}badge-warning{% endif %}">{{ st.status }}</span></td>
+      <td>{% if st.adjustment_voucher_id %}<a href="{{ url_for('inv_vouchers.adjustment_form', id=st.adjustment_voucher_id) }}">View</a>{% else %}-{% endif %}</td>
+      <td>
+        <a href="{{ url_for('inv_vouchers.stock_take_form', id=st.id) }}" class="btn btn-sm btn-outline">Edit</a>
+        <a href="{{ url_for('inv_vouchers.stock_take_delete', id=st.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">No stock takes yet.</p>
+{% endif %}
+{% endblock %}

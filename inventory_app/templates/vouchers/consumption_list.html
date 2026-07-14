@@ -1,0 +1,32 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Consumption Vouchers{% endblock %}
+{% block page_title %}Consumption Vouchers{% endblock %}
+{% block content %}
+<a href="{{ url_for('inv_vouchers.consumption_form') }}" class="btn btn-primary" style="margin-bottom:1rem;">+ New Consumption</a>
+{% if vouchers %}
+<table class="table">
+  <thead><tr><th>#</th><th>Voucher No.</th><th>Date</th><th>Department</th><th>Items</th><th>Status</th><th>Actions</th></tr></thead>
+  <tbody>
+    {% for v in vouchers %}
+    <tr>
+      <td>{{ v.id }}</td>
+      <td><a href="{{ url_for('inv_vouchers.consumption_form', id=v.id) }}">{{ v.voucher_number }}</a></td>
+      <td>{{ v.date.strftime('%Y-%m-%d') if v.date else '' }}</td>
+      <td>{{ v.department }}</td>
+      <td>{{ v.items|length }}</td>
+      <td><span class="badge {% if v.status=='approved' %}badge-success{% else %}badge-warning{% endif %}">{{ v.status }}</span></td>
+      <td>
+        <a href="{{ url_for('inv_vouchers.consumption_form', id=v.id) }}" class="btn btn-sm btn-outline">Edit</a>
+        {% if v.status == 'approved' %}
+        <a href="{{ url_for('inv_vouchers.consumption_unapprove', id=v.id) }}" class="btn btn-sm btn-warning" onclick="return confirm('Unapprove?')">Unapprove</a>
+        {% endif %}
+        <a href="{{ url_for('inv_vouchers.consumption_delete', id=v.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">No consumption vouchers yet.</p>
+{% endif %}
+{% endblock %}

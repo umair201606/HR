@@ -1,0 +1,53 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Stock Ledger Report{% endblock %}
+{% block page_title %}Stock Ledger Report{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <form method="GET" class="form-row" style="gap:12px;align-items:flex-end;">
+      <div class="form-group">
+        <label for="product_id">Product</label>
+        <select name="product_id" id="product_id" class="form-control">
+          <option value="">-- Select Product --</option>
+          {% for p in products %}
+          <option value="{{ p.id }}" {{ 'selected' if selected_id==p.id else '' }}>{{ p.name }} ({{ p.sku }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">View Ledger</button>
+      {% if selected_id %}<a href="{{ url_for('inv_reports.stock_ledger_report') }}" class="btn btn-outline">Clear</a>{% endif %}
+    </form>
+  </div>
+</div>
+
+{% if product %}
+<div class="card">
+  <div class="card-header"><strong>{{ product.name }}</strong> ({{ product.sku }})</div>
+  <div class="card-body">
+    {% if entries %}
+    <table class="table">
+      <thead><tr><th>#</th><th>Date</th><th>Voucher</th><th>Type</th><th>Qty</th><th>Unit Cost</th><th>Running Qty</th><th>Running Value</th><th>Avg Cost</th><th>Notes</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td>{{ e.id }}</td>
+          <td>{{ e.created_at.strftime('%Y-%m-%d %H:%M') if e.created_at else '' }}</td>
+          <td><a href="{{ url_for('inv_vouchers.voucher_preview', vtype=e.voucher_type, vid=e.voucher_id) }}" target="_blank">{{ e.voucher_number }}</a></td>
+          <td><span class="badge {% if e.transaction_type=='IN' %}badge-success{% else %}badge-danger{% endif %}">{{ e.transaction_type }}</span></td>
+          <td>{{ e.quantity }}</td>
+          <td>{{ "%.4f"|format(e.unit_cost) }}</td>
+          <td>{{ "%.2f"|format(e.running_qty) }}</td>
+          <td>{{ "%.2f"|format(e.running_cost) }}</td>
+          <td>{{ "%.4f"|format(e.running_avg) }}</td>
+          <td>{{ e.notes or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">No ledger entries for this product.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
