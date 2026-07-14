@@ -61,8 +61,7 @@ def _create_app():
             app._db_initialized = True
             try:
                 db.create_all()
-                if not os.environ.get("VERCEL_ENV"):
-                    _seed_all_data(app)
+                _seed_all_data(app)
             except Exception as e:
                 print("DB INIT ERROR:", e)
                 _tb.print_exc()
