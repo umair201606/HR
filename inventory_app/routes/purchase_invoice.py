@@ -31,8 +31,28 @@ def invoice_form(id):
     invoice = InvPurchaseInvoice.query.get(id) if id else None
     suppliers = InvSupplier.query.filter_by(is_active=True).order_by(InvSupplier.name).all()
     products = InvProduct.query.filter_by(is_active=True).order_by(InvProduct.name).all()
+    invoice_items = []
+    if invoice:
+        for it in invoice.items.all():
+            invoice_items.append({
+                "product_id": it.product_id,
+                "product": {"sku": it.product.sku if it.product else ""},
+                "description": it.description,
+                "quantity": it.quantity,
+                "unit": it.unit,
+                "unit_price": it.unit_price,
+                "discount_pct": it.discount_pct,
+                "discount_amount": it.discount_amount,
+                "commission": it.commission,
+                "freight": it.freight,
+                "loading_unloading": it.loading_unloading,
+                "sales_tax_pct": it.sales_tax_pct,
+                "total_before_discount": it.total_before_discount,
+                "total_after_discount": it.total_after_discount,
+            })
     return render_template("purchase_invoice/form_inv.html",
                            invoice=invoice,
+                           invoice_items=invoice_items,
                            suppliers=suppliers,
                            products=products,
                            now=datetime.utcnow())
@@ -206,6 +226,22 @@ def unapprove_invoice(id):
     db.session.commit()
     return jsonify({"ok": True, "status": "unapproved",
                     "message": "Invoice has been unapproved and unlocked for editing"})
+
+
+@inv_pinv_bp.route("/delete/<int:id>", methods=["POST"])
+@login_required
+def delete_invoice(id):
+    inv = InvPurchaseInvoice.query.get_or_404(id)
+    if inv.status == "approved":
+        return jsonify({"ok": False, "error": "Cannot delete an approved invoice. Unapprove it first."}), 400
+    try:
+        InvPurchaseInvoiceItem.query.filter_by(invoice_id=inv.id).delete()
+        db.session.delete(inv)
+        db.session.commit()
+        return jsonify({"ok": True, "message": "Invoice deleted successfully"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @inv_pinv_bp.route("/list")

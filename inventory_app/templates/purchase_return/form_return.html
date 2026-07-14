@@ -25,16 +25,17 @@ textarea.inp{resize:vertical;font-family:inherit}
 .hdr-g{display:grid;grid-template-columns:2fr 1fr 1fr;gap:20px;align-items:start}
 .tb-w{overflow-x:auto;border:1px solid var(--border);border-radius:5px;-webkit-overflow-scrolling:touch}
 .tb-w::after{content:'\2190  Scroll for more columns  \2192';display:block;text-align:center;font-size:10px;color:var(--light);padding:2px;background:#f8fafc;border-top:1px solid var(--border)}
-.tb{width:100%;border-collapse:collapse;font-size:13px;min-width:1100px}
-.tb th{padding:8px 8px;font-size:11px;font-weight:700;color:#991b1b;background:#fef2f2;border-bottom:2px solid #fecaca;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
-.tb td{padding:4px 6px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.tb{width:100%;border-collapse:collapse;font-size:13px}
+.tb th{padding:8px 10px;font-size:11px;font-weight:700;color:#991b1b;background:#fef2f2;border-bottom:2px solid #fecaca;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.tb td{padding:4px 6px;border-bottom:1px solid #f1f5f9;vertical-align:middle;white-space:nowrap}
 .tb tr:hover td{background:#fafafa}
-.tb .ri{width:100%;border:1px solid transparent;padding:7px 8px;font-size:13px;background:transparent;outline:none;border-radius:4px;font-family:inherit;min-height:34px}
+.tb .ri{width:100%;border:1px solid transparent;padding:7px 8px;font-size:13px;background:transparent;outline:none;border-radius:4px;font-family:inherit;min-height:34px;box-sizing:border-box}
 .tb .ri:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(220,38,38,.1);outline:none;background:#fff}
 .tb .ri:disabled{background:transparent;color:var(--muted)}
 .tb .ri.rc{font-weight:700;border:none;background:transparent;color:var(--text)}
 .tb .rn{width:32px;text-align:center;color:var(--light);font-size:11px;font-weight:600}
 .tb .num{text-align:right}
+.tb th.num{padding-right:14px}
 .tb .rqty{font-weight:600;border:1px solid var(--border);background:#fff}
 .tb .rqty:focus{border-color:var(--primary);box-shadow:0 0 0 2px rgba(220,38,38,.15)}
 .tb .rqty:disabled{background:#f8fafc;color:var(--muted)}
@@ -73,7 +74,7 @@ textarea.inp{resize:vertical;font-family:inherit}
 .modal-b{background:#fff;padding:24px;border-radius:var(--radius);width:420px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.15)}
 .modal-b h3{margin:0 0 12px;font-size:16px}
 .modal-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-@media(max-width:768px){.wrap{padding:12px}.card-h{padding:10px 14px;flex-wrap:wrap;gap:8px}.card-b{padding:12px 14px}.hdr-g{grid-template-columns:1fr;gap:12px}.btm{grid-template-columns:1fr}.btm-l{border-right:none;border-bottom:1px solid var(--border)}.tb-w::after{content:'\2190  Scroll for more  \2192'}.tb{font-size:12px;min-width:1000px}.tb .ri{padding:5px 6px;font-size:12px;min-height:30px}.ab{flex-wrap:wrap}.btn{width:100%;justify-content:center}.hdr-g>div>div{grid-template-columns:1fr!important}#originalInvoiceRef>div{grid-template-columns:1fr!important}}
+@media(max-width:768px){.wrap{padding:12px}.card-h{padding:10px 14px;flex-wrap:wrap;gap:8px}.card-b{padding:12px 14px}.hdr-g{grid-template-columns:1fr;gap:12px}.btm{grid-template-columns:1fr}.btm-l{border-right:none;border-bottom:1px solid var(--border)}.tb-w::after{content:'\2190  Scroll for more  \2192'}.tb{font-size:12px}.tb .ri{padding:5px 6px;font-size:12px;min-height:30px}.tb th{padding:6px 6px;font-size:10px}.ab{flex-wrap:wrap}.btn{width:100%;justify-content:center}.hdr-g>div>div{grid-template-columns:1fr!important}#originalInvoiceRef>div{grid-template-columns:1fr!important}}
 @media(max-width:480px){.wrap{padding:8px}.card-h{font-size:10px}.card-b{padding:8px 10px}.modal-b{width:95vw;padding:16px}}
 @media print{.sidebar,.topbar,.ab,.toast-c,.btn,.modal-o,.tb-w::after{display:none!important}.wrap{padding:0}.card{box-shadow:none;border:none}body{background:#fff}}
 </style>
@@ -148,20 +149,20 @@ textarea.inp{resize:vertical;font-family:inherit}
           <thead>
             <tr>
               <th style="width:32px;">#</th>
-              <th style="width:90px;">Code</th>
-              <th style="min-width:180px;">Description</th>
-              <th class="num" style="width:60px;">Orig</th>
-              <th class="num" style="width:60px;">Prev</th>
-              <th class="num" style="width:60px;">Max</th>
-              <th class="num" style="width:88px;">Ret Qty *</th>
-              <th style="width:50px;">Unit</th>
-              <th class="num" style="width:82px;">Price</th>
-              <th class="num" style="width:62px;">Disc%</th>
-              <th class="num" style="width:62px;">STax%</th>
-              <th class="num" style="width:62px;">WHT%</th>
-              <th class="num" style="width:96px;">Prop Disc</th>
-              <th class="num" style="width:96px;">Prop Tax</th>
-              <th class="num" style="width:110px;">Net Return</th>
+              <th>Code</th>
+              <th style="min-width:140px;">Description</th>
+              <th class="num">Original</th>
+              <th class="num">Prev Ret.</th>
+              <th class="num">Max Ret.</th>
+              <th class="num">Return Qty *</th>
+              <th>Unit</th>
+              <th class="num">Price</th>
+              <th class="num">Disc. %</th>
+              <th class="num">Sales Tax %</th>
+              <th class="num">W/H Tax %</th>
+              <th class="num">Prop. Disc.</th>
+              <th class="num">Prop. Tax</th>
+              <th class="num">Net Return</th>
             </tr>
           </thead>
           <tbody id="itemsBody"></tbody>
@@ -230,6 +231,8 @@ textarea.inp{resize:vertical;font-family:inherit}
 {% block extra_scripts %}
 <script>
 var invoiceData = null, itemsData = [], editable = {{ 'false' if is_approved else 'true' }};
+function fmt(v){var n=parseFloat(v)||0;return n.toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function cv(s){return parseFloat((s||'').replace(/Rs\.\s*/,'').replace(/,/g,''))||0}
 
 function toast(m,t){var c=document.getElementById('toastContainer'),d=document.createElement('div');d.className='toast toast-'+t;d.innerHTML=m+'<button style="background:none;border:none;color:inherit;font-size:16px;cursor:pointer;margin-left:auto;padding:0;line-height:1;" onclick="this.parentElement.remove()">&times;</button>';c.appendChild(d);setTimeout(function(){d.style.opacity='0';d.style.transition='opacity .3s';setTimeout(function(){d.remove()},300)},4000)}
 function showConfirm(t,m,cb){document.getElementById('confirmTitle').textContent=t;document.getElementById('confirmMsg').textContent=m;document.getElementById('confirmModal').classList.add('show');document.getElementById('confirmOkBtn').onclick=function(){document.getElementById('confirmModal').classList.remove('show');cb()}}
@@ -252,7 +255,7 @@ async function loadInvoiceData(invoiceId) {
   document.getElementById('refInvNumber').textContent = inv.invoice_number;
   document.getElementById('refSupplier').textContent = inv.supplier_name;
   document.getElementById('refInvDate').textContent = inv.date;
-  document.getElementById('refNetPayable').textContent = inv.net_payable.toFixed(2);
+  document.getElementById('refNetPayable').textContent = 'Rs. '+fmt(inv.net_payable);
   renderItems();
 }
 
@@ -344,12 +347,12 @@ function recalc() {
     var tt = tr.querySelector('[data-col="prop_tax"]'); if (tt) tt.value = (propSTax - propWHTax).toFixed(2);
     var tn = tr.querySelector('[data-col="net_return"]'); if (tn) tn.value = netVal.toFixed(2);
   });
-  document.getElementById('summaryGrossReturn').textContent = grossReturn.toFixed(2);
-  document.getElementById('summaryDiscount').textContent = '-' + totalDisc.toFixed(2);
-  document.getElementById('summaryExpenses').textContent = totalExp.toFixed(2);
-  document.getElementById('summarySalesTax').textContent = totalSTax.toFixed(2);
-  document.getElementById('summaryWithholdingTax').textContent = '-' + totalWHTax.toFixed(2);
-  document.getElementById('summaryNetReturn').textContent = (grossReturn - totalDisc + totalExp + totalSTax - totalWHTax).toFixed(2);
+  document.getElementById('summaryGrossReturn').textContent = fmt(grossReturn);
+  document.getElementById('summaryDiscount').textContent = '-' + fmt(totalDisc);
+  document.getElementById('summaryExpenses').textContent = fmt(totalExp);
+  document.getElementById('summarySalesTax').textContent = fmt(totalSTax);
+  document.getElementById('summaryWithholdingTax').textContent = '-' + fmt(totalWHTax);
+  document.getElementById('summaryNetReturn').textContent = 'Rs. '+fmt(grossReturn - totalDisc + totalExp + totalSTax - totalWHTax);
 }
 
 function collectData() {
@@ -380,15 +383,17 @@ function collectData() {
     original_invoice_id: invoiceData.invoice.id, supplier_id: invoiceData.invoice.supplier_id,
     notes: document.getElementById('returnNotes').value,
     reverse_expenses: document.getElementById('reverseExpenses').checked,
-    gross_return_value: parseFloat(document.getElementById('summaryGrossReturn').textContent) || 0,
-    total_discount: parseFloat(document.getElementById('summaryDiscount').textContent.replace('-','')) || 0,
-    total_expenses: parseFloat(document.getElementById('summaryExpenses').textContent) || 0,
-    total_tax: parseFloat(document.getElementById('summarySalesTax').textContent) || 0,
-    net_return_amount: parseFloat(document.getElementById('summaryNetReturn').textContent) || 0,
+    gross_return_value: cv(document.getElementById('summaryGrossReturn').textContent),
+    total_discount: cv(document.getElementById('summaryDiscount').textContent),
+    total_expenses: cv(document.getElementById('summaryExpenses').textContent),
+    total_tax: cv(document.getElementById('summarySalesTax').textContent),
+    net_return_amount: cv(document.getElementById('summaryNetReturn').textContent),
     items: items,
   };
 }
 
+function disableAll(frozen){document.querySelectorAll('#itemsBody input, #itemsBody button, .inp, .sel, .sli, #reverseExpenses, .bsm, #saveBtn, #saveChangesBtn, #approveBtn, #originalInvoiceSelect').forEach(function(el){el.disabled=frozen})}
+function rebuildActionBar(st){var bar=document.querySelector('.ab');if(!bar)return;bar.innerHTML='';if(st==='approved'){bar.innerHTML='<button type="button" class="btn btn-d" id="unapproveBtn">Unapprove Return</button><button type="button" class="btn btn-o" onclick="window.print()">Print</button><a href="{{ url_for("inv_purchasereturn.list_returns") }}" class="btn btn-o">New Return</a>';var ub=document.getElementById('unapproveBtn');if(ub)ub.addEventListener('click',function(){showConfirm('Unapprove Return','Reverse inventory deduction and unlock quantities?',unapproveReturn)})}else if(st==='unapproved'){bar.innerHTML='<button type="button" class="btn btn-o" onclick="window.print()">Print</button><a href="{{ url_for("inv_purchasereturn.list_returns") }}" class="btn btn-o">New Return</a>'}else if(st==='new'){bar.innerHTML='<button type="button" class="btn btn-p" id="saveBtn">Save as Unapproved Return</button><a href="{{ url_for("inv_purchasereturn.list_returns") }}" class="btn btn-o">Cancel</a>';var sb=document.getElementById('saveBtn');if(sb)sb.addEventListener('click',function(){saveReturn('save')})}}
 async function saveReturn(action) {
   var data = collectData();
   if (!data) return;
@@ -402,8 +407,8 @@ async function saveReturn(action) {
   var displayMap = { new: 'New', unapproved: 'Unapproved', approved: 'Approved' };
   badge.className = 'bdg bdg-' + res.status;
   badge.textContent = displayMap[res.status] || res.status;
-  if (action === 'approve') { setTimeout(function() { window.location.href = '/inventory/purchase-return/' + res.id; }, 1500); }
-  else if (action === 'save' && {{ 'true' if is_new else 'false' }}) { setTimeout(function() { window.location.href = '/inventory/purchase-return/' + res.id; }, 800); }
+  if (res.status === 'approved') { var eb=document.querySelector('.ap-b'); if(!eb){var nb=document.createElement('div');nb.className='ap-b';nb.innerHTML='<span class="ap-t">&#10003; APPROVED</span><span>'+new Date().toLocaleString()+'</span>';var w=document.querySelector('.wrap');if(w)w.insertBefore(nb,w.querySelector('.card'))}} else { var eb2=document.querySelector('.ap-b'); if(eb2)eb2.remove() }
+  disableAll(true); rebuildActionBar(res.status); recalc();
 }
 
 async function unapproveReturn() {
@@ -412,9 +417,10 @@ async function unapproveReturn() {
   document.getElementById('unapproveBtn').textContent = 'Processing...';
   var r = await fetch('/inventory/purchase-return/unapprove/' + id, { method: 'POST' });
   var res = await r.json();
-  if (!res.ok) { toast(res.error, 'error'); document.getElementById('unapproveBtn').disabled = false; document.getElementById('unapproveBtn').textContent = 'Unapprove Return'; return; }
+  if (!res.ok) { toast(res.error, 'error'); var ub2=document.getElementById('unapproveBtn'); if(ub2){ub2.disabled=false;ub2.textContent='Unapprove Return'} return; }
   toast(res.message, 'success');
-  setTimeout(function() { window.location.href = '/inventory/purchase-return/' + id; }, 1000);
+  var badge2=document.getElementById('statusBadge'); if(badge2){badge2.className='bdg bdg-unapproved';badge2.textContent='Unapproved'}
+  disableAll(false); rebuildActionBar('unapproved');
 }
 
 document.getElementById('saveBtn')?.addEventListener('click', function() { saveReturn('save'); });

@@ -23,8 +23,26 @@ def invoice_form(id):
     invoice = InvInvoice.query.get(id) if id else None
     customers = InvCustomer.query.filter_by(is_active=True).order_by(InvCustomer.name).all()
     products = InvProduct.query.filter_by(is_active=True).order_by(InvProduct.name).all()
+    invoice_items = []
+    if invoice:
+        for it in invoice.items.all():
+            product = it.product
+            invoice_items.append({
+                "product_id": it.product_id,
+                "product": {"sku": product.sku if product else ""},
+                "description": it.description,
+                "quantity": it.quantity,
+                "unit": it.unit,
+                "unit_price": it.unit_price,
+                "discount_pct": it.discount_pct,
+                "discount_amount": it.discount_amount,
+                "sales_tax_pct": it.sales_tax_pct,
+                "total_before_discount": it.total_before_discount,
+                "total_after_discount": it.total_after_discount,
+            })
     return render_template("invoices/form_inv.html",
-                           invoice=invoice, customers=customers,
+                           invoice=invoice, invoice_items=invoice_items,
+                           customers=customers,
                            products=products, now=datetime.utcnow())
 
 

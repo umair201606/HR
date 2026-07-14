@@ -20,10 +20,10 @@ body { background: var(--qb-bg); }
 .qb-field .qb-input:focus { border-color: var(--qb-primary); outline: none; box-shadow: 0 0 0 2px rgba(37,99,235,.1); }
 .qb-field select.qb-input { cursor: pointer; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--qb-table-border); }
-.qb-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 500px; }
-.qb-table th { background: var(--qb-table-header-bg); padding: 7px 6px; font-size: 10px; font-weight: 600; color: var(--qb-text-muted); text-align: left; border-bottom: 2px solid var(--qb-table-border); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
-.qb-table td { padding: 3px 6px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
-.qb-table .ri { width: 100%; border: 1px solid transparent; padding: 4px 5px; font-size: 12px; background: transparent; box-sizing: border-box; }
+.qb-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.qb-table th { background: var(--qb-table-header-bg); padding: 8px 10px; font-size: 11px; font-weight: 600; color: var(--qb-text-muted); text-align: left; border-bottom: 2px solid var(--qb-table-border); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
+.qb-table td { padding: 4px 6px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; white-space: nowrap; }
+.qb-table .ri { width: 100%; border: 1px solid transparent; padding: 7px 8px; font-size: 13px; background: transparent; box-sizing: border-box; min-height: 34px; }
 .qb-table .ri:focus { border-color: var(--qb-primary); box-shadow: 0 0 0 2px rgba(37,99,235,.1); outline: none; background: #fff; }
 .qb-table .ri.rc { background: transparent; color: var(--qb-text); font-weight: 600; border: none; }
 .qb-table .rn { width: 24px; text-align: center; color: var(--qb-text-light); font-size: 11px; }
@@ -34,7 +34,9 @@ body { background: var(--qb-bg); }
 .btn-qb-primary:hover { background: var(--qb-primary-hover); }
 .btn-qb-outline { background: #fff; color: var(--qb-text); border: 1px solid var(--qb-input-border); }
 .btn-qb-outline:hover { background: #f3f4f6; }
-@media print { .sidebar, .topbar, .action-bar { display: none !important; } body { background: #fff; } }
+@media(max-width:768px){.invoice-wrap{padding:12px}.qb-card .card-body{padding:12px 14px}.qb-card .card-header{padding:10px 14px}.table-wrap::after{content:'\2190  Scroll for more  \2192';display:block;text-align:center;font-size:10px;color:var(--qb-text-light);padding:2px;background:var(--qb-table-header-bg);border-top:1px solid var(--qb-table-border)}.qb-table{font-size:12px}.qb-table th{padding:6px 6px;font-size:10px}.qb-table .ri{padding:5px 6px;font-size:12px;min-height:30px}.action-bar{flex-wrap:wrap}.btn-qb{width:100%;justify-content:center}}
+@media(max-width:480px){.invoice-wrap{padding:8px}}
+@media print { .sidebar, .topbar, .action-bar, .table-wrap::after { display: none !important; } body { background: #fff; } }
 </style>
 {% endblock %}
 
@@ -67,13 +69,13 @@ body { background: var(--qb-bg); }
           <table class="qb-table">
             <thead>
               <tr>
-                <th style="width:24px;">#</th>
-                <th style="min-width:60px;">SKU</th>
-                <th style="min-width:180px;">Product</th>
-                <th style="width:70px;">Quantity</th>
-                <th style="width:90px;">Unit Price</th>
-                <th style="width:100px;">Total</th>
-                <th style="width:24px;"></th>
+                <th style="width:28px;">#</th>
+                <th style="min-width:80px;">Code</th>
+                <th style="min-width:140px;">Description</th>
+                <th class="num">Quantity</th>
+                <th class="num" style="min-width:80px;">Unit Price</th>
+                <th class="num">Amount</th>
+                <th style="width:44px;"></th>
               </tr>
             </thead>
             <tbody id="itemsBody"></tbody>
@@ -102,6 +104,7 @@ body { background: var(--qb-bg); }
 <script>
 var products = {{ products|tojson }};
 var rowCount = 0;
+function fmt(v){var n=parseFloat(v)||0;return n.toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2})}
 
 function addRow(data) {
   var tbody = document.getElementById('itemsBody');
@@ -119,7 +122,7 @@ function addRow(data) {
     '</select></td>' +
     '<td><input type="number" name="quantity[]" class="ri" data-col="quantity" value="' + ((data && data.quantity) || 1) + '" min="1" required></td>' +
     '<td><input type="number" step="0.01" name="unit_price[]" class="ri" data-col="unit_price" value="' + ((data && data.unit_price) || 0) + '" min="0" required></td>' +
-    '<td><input type="text" class="ri rc" data-col="total" value="' + ((data && (data.quantity * data.unit_price).toFixed(2)) || '0.00') + '" readonly></td>' +
+    '<td><input type="text" class="ri rc" data-col="amount" value="0" readonly></td>' +
     '<td><button type="button" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:2px;" onclick="removeRow(this)">&times;</button></td>';
   tbody.appendChild(tr);
 
@@ -152,15 +155,15 @@ function removeRow(btn) {
 function recalcRow(tr) {
   var qty = parseFloat(tr.querySelector('[data-col="quantity"]').value) || 0;
   var price = parseFloat(tr.querySelector('[data-col="unit_price"]').value) || 0;
-  tr.querySelector('[data-col="total"]').value = (qty * price).toFixed(2);
+  tr.querySelector('[data-col="amount"]').value = fmt(qty * price);
 }
 
 function recalcTotal() {
   var total = 0;
   document.querySelectorAll('#itemsBody tr').forEach(function(tr) {
-    total += parseFloat(tr.querySelector('[data-col="total"]').value) || 0;
+    total += parseFloat((tr.querySelector('[data-col="amount"]').value||'0').replace(/,/g,'')) || 0;
   });
-  document.getElementById('soTotal').textContent = total.toFixed(2);
+  document.getElementById('soTotal').textContent = 'Rs. '+fmt(total);
 }
 
 addRow({});

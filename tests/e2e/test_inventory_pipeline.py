@@ -45,6 +45,7 @@ class TestInvPurchaseInvoice:
     def test_new_purchase_invoice_form_loads(self, admin_page):
         admin_page.goto(f"{BASE_URL}/inventory/purchase-invoice/")
         admin_page.wait_for_load_state("networkidle")
+        admin_page.locator("#itemsBody tr").wait_for(state="attached", timeout=5000)
         assert admin_page.locator("#supplierSearch").is_visible()
         assert admin_page.locator("#itemsBody").is_visible()
         assert admin_page.locator("#addLineBtn").is_visible()
@@ -63,12 +64,11 @@ class TestInvPurchaseInvoice:
     def test_purchase_invoice_clear_lines(self, admin_page):
         admin_page.goto(f"{BASE_URL}/inventory/purchase-invoice/")
         admin_page.wait_for_load_state("networkidle")
+        admin_page.locator("#itemsBody tr").wait_for(state="attached", timeout=5000)
         admin_page.locator("#clearAllBtn").click()
+        admin_page.locator("#confirmOkBtn").wait_for(state="visible", timeout=3000)
+        admin_page.locator("#confirmOkBtn").click()
         admin_page.wait_for_timeout(300)
-        ok_btn = admin_page.locator("#confirmOkBtn")
-        if ok_btn.is_visible():
-            ok_btn.click()
-            admin_page.wait_for_timeout(200)
         remaining = admin_page.locator("#itemsBody tr").count()
         assert remaining == 1, "Should leave exactly 1 blank row after clear"
 
