@@ -187,6 +187,7 @@
       document.getElementById('sidebar').classList.toggle('collapsed');
     });
   </script>
+  {% block extra_scripts %}{% endblock %}
   {% else %}
   <div class="login-layout">
     {% block login_content %}{% endblock %}

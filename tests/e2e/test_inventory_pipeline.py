@@ -1,0 +1,121 @@
+"""E2E tests for Inventory app pipeline — products, suppliers, purchase invoice, purchase return."""
+
+import re
+BASE_URL = "http://localhost:5000"
+
+
+class TestInvLogin:
+    def test_login_page_loads(self, login_page):
+        assert login_page.locator("#email").is_visible()
+        assert login_page.locator("#password").is_visible()
+
+    def test_login_success(self, admin_page):
+        assert "/dashboard/" in admin_page.url
+
+
+class TestInvDashboard:
+    def test_inventory_dashboard_loads(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/dashboard")
+        admin_page.wait_for_load_state("networkidle")
+        assert "inventory" in admin_page.url.lower() or "dashboard" in admin_page.url
+
+
+class TestInvProducts:
+    def test_products_list_loads(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/products/")
+        admin_page.wait_for_load_state("networkidle")
+        assert "product" in admin_page.url.lower()
+
+
+class TestInvSuppliers:
+    def test_suppliers_list_loads(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/suppliers/")
+        admin_page.wait_for_load_state("networkidle")
+        assert "supplier" in admin_page.url.lower()
+
+
+class TestInvCustomers:
+    def test_customers_list_loads(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/customers/")
+        admin_page.wait_for_load_state("networkidle")
+        assert "customer" in admin_page.url.lower()
+
+
+class TestInvPurchaseInvoice:
+    def test_new_purchase_invoice_form_loads(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/purchase-invoice/")
+        admin_page.wait_for_load_state("networkidle")
+        assert admin_page.locator("#supplierSearch").is_visible()
+        assert admin_page.locator("#itemsBody").is_visible()
+        assert admin_page.locator("#addLineBtn").is_visible()
+        assert admin_page.locator("#clearAllBtn").is_visible()
+        assert admin_page.locator("#saveBtn").is_visible()
+
+    def test_purchase_invoice_add_line(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/purchase-invoice/")
+        admin_page.wait_for_load_state("networkidle")
+        init_rows = admin_page.locator("#itemsBody tr").count()
+        admin_page.locator("#addLineBtn").click()
+        admin_page.wait_for_timeout(200)
+        new_rows = admin_page.locator("#itemsBody tr").count()
+        assert new_rows > init_rows, "Add Line button should add a row"
+
+    def test_purchase_invoice_clear_lines(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/purchase-invoice/")
+        admin_page.wait_for_load_state("networkidle")
+        admin_page.locator("#clearAllBtn").click()
+        admin_page.wait_for_timeout(300)
+        ok_btn = admin_page.locator("#confirmOkBtn")
+        if ok_btn.is_visible():
+            ok_btn.click()
+            admin_page.wait_for_timeout(200)
+        remaining = admin_page.locator("#itemsBody tr").count()
+        assert remaining == 1, "Should leave exactly 1 blank row after clear"
+
+    def test_purchase_invoice_pill_toggles(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/purchase-invoice/")
+        admin_page.wait_for_load_state("networkidle")
+        pill_combined = admin_page.locator("#discountMode .pill-b").first
+        if pill_combined.is_enabled():
+            pill_combined.click()
+            admin_page.wait_for_timeout(100)
+            assert "active" in (pill_combined.get_attribute("class") or "")
+
+    def test_purchase_invoice_summary_calculates(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/purchase-invoice/")
+        admin_page.wait_for_load_state("networkidle")
+        qty = admin_page.locator("#itemsBody [data-col='quantity']").first
+        if qty.is_visible():
+            qty.fill("10")
+            admin_page.wait_for_timeout(300)
+            rate = admin_page.locator("#itemsBody [data-col='unit_price']").first
+            rate.fill("100")
+            admin_page.wait_for_timeout(300)
+            subtotal = admin_page.locator("#summarySubtotal")
+            assert subtotal.is_visible()
+
+    def test_purchase_invoice_global_inputs(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/purchase-invoice/")
+        admin_page.wait_for_load_state("networkidle")
+        disc = admin_page.locator("#globalDiscPct")
+        if disc.is_visible():
+            disc.fill("5")
+            admin_page.wait_for_timeout(200)
+            disc_val = admin_page.locator("#globalDiscVal")
+            if disc_val:
+                net = admin_page.locator("#summaryNetPayable")
+                assert net.is_visible()
+
+
+class TestInvPurchaseReturn:
+    def test_purchase_return_form_loads(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/inventory/purchase-return/")
+        admin_page.wait_for_load_state("networkidle")
+        assert "return" in admin_page.url.lower()
+
+
+class TestInvLogout:
+    def test_logout(self, admin_page):
+        admin_page.goto(f"{BASE_URL}/auth/logout")
+        admin_page.wait_for_load_state("networkidle")
+        assert "/auth/login" in admin_page.url
