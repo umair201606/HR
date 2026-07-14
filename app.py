@@ -341,15 +341,16 @@ try:
     app = create_app()
 except Exception as e:
     import traceback
+    _tb = traceback.format_exc()
     print("FATAL: App creation failed:", e)
-    traceback.print_exc()
+    print(_tb)
     app = Flask(__name__)
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
 
     @app.route("/")
     @app.route("/<path:path>")
     def error_route(path=""):
-        return f"<pre style='background:#fef2f2;padding:20px;border:2px solid #ef4444;border-radius:8px;font-size:13px;overflow:auto;max-height:90vh;'>App failed to start:\n{traceback.format_exc()}</pre>", 500
+        return f"<pre style='background:#fef2f2;padding:20px;border:2px solid #ef4444;border-radius:8px;font-size:13px;overflow:auto;max-height:90vh;'>App failed to start:\n{_tb}</pre>", 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
