@@ -11,10 +11,13 @@ HR_PROJECT = Path(__file__).resolve().parent.parent.parent
 
 @pytest.fixture(scope="session")
 def flask_server():
+    test_env = {**{k: v for k, v in __import__("os").environ.items()},
+                "DATABASE_URL": "sqlite:///e2e_test.db",
+                "FLASK_ENV": "testing"}
     proc = subprocess.Popen(
         [sys.executable, "run_local.py"],
         cwd=str(HR_PROJECT),
-        env={"DATABASE_URL": "sqlite:///e2e_test.db", "FLASK_ENV": "testing"},
+        env=test_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

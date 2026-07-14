@@ -288,6 +288,11 @@ def _seed_all_data(app):
                 db.session.add(c)
 
         InventorySettings.get()
+
+        from shared.models.company_settings import CompanyInfo, AccountingPeriod
+        CompanyInfo.get()
+        AccountingPeriod.seed_current_year()
+
         db.session.commit()
         print("Seed data OK")
 

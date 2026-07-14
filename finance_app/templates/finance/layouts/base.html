@@ -65,6 +65,9 @@
       <i class="fas fa-money-bill-wave"></i> Cash Flow
     </a>
     <hr style="border-color:#334155;margin:12px 20px;">
+    <a href="{{ url_for('finance_settings.index') }}" class="{% if request.endpoint and request.endpoint.startswith('finance_settings') %}active{% endif %}">
+      <i class="fas fa-cog"></i> Settings
+    </a>
     <a href="{{ url_for('inv_dashboard.dashboard') }}"><i class="fas fa-arrow-left"></i> Back to Inventory</a>
   </nav>
 

@@ -1,0 +1,287 @@
+{% extends "finance/layouts/base.html" %}
+{% block title %}Company Settings{% endblock %}
+{% block heading %}Company Settings{% endblock %}
+{% block content %}
+<div class="flex gap-6">
+  <!-- Side Panel -->
+  <div class="w-64 shrink-0 no-print">
+    <div class="card p-0 overflow-hidden">
+      <a href="?tab=company" class="flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition
+        {% if tab == 'company' %}bg-blue-50 text-blue-700 border-l-4 border-blue-600{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
+        <i class="fas fa-building fa-fw w-5 text-center"></i> Company Profile
+      </a>
+      <a href="?tab=periods" class="flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition
+        {% if tab == 'periods' %}bg-blue-50 text-blue-700 border-l-4 border-blue-600{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
+        <i class="fas fa-calendar-alt fa-fw w-5 text-center"></i> Financial Periods
+      </a>
+      <a href="?tab=rights" class="flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition
+        {% if tab == 'rights' %}bg-blue-50 text-blue-700 border-l-4 border-blue-600{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
+        <i class="fas fa-shield-alt fa-fw w-5 text-center"></i> User Rights & Controls
+      </a>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 min-w-0">
+
+    {% if tab == 'company' %}
+    <!-- ═══════ COMPANY PROFILE ═══════ -->
+    <div class="card">
+      <h2 class="font-bold text-lg mb-4 flex items-center gap-2"><i class="fas fa-building text-blue-600"></i> Company Profile</h2>
+      <form method="POST" action="{{ url_for('finance_settings.save_company') }}">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-600 mb-1">Company Name *</label>
+            <input type="text" name="company_name" value="{{ company.company_name or '' }}" required class="w-full">
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-600 mb-1">Address</label>
+            <textarea name="address" rows="2" class="w-full">{{ company.address or '' }}</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">City</label>
+            <input type="text" name="city" value="{{ company.city or '' }}" class="w-full">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">State</label>
+            <input type="text" name="state" value="{{ company.state or '' }}" class="w-full">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Country</label>
+            <input type="text" name="country" value="{{ company.country or 'Pakistan' }}" class="w-full">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Phone</label>
+            <input type="text" name="phone" value="{{ company.phone or '' }}" class="w-full">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Email</label>
+            <input type="email" name="email" value="{{ company.email or '' }}" class="w-full">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Website</label>
+            <input type="text" name="website" value="{{ company.website or '' }}" class="w-full">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Tax ID / NTN</label>
+            <input type="text" name="tax_id" value="{{ company.tax_id or '' }}" class="w-full">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Registration Number</label>
+            <input type="text" name="registration_number" value="{{ company.registration_number or '' }}" class="w-full">
+          </div>
+          <hr class="md:col-span-2 border-slate-200">
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Fiscal Year Start Month</label>
+            <select name="fiscal_year_start_month" class="w-full">
+              {% for m in range(1, 13) %}
+              <option value="{{ m }}" {% if company.fiscal_year_start_month == m %}selected{% endif %}>{{ ["", "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Currency</label>
+            <select name="currency" class="w-full">
+              <option value="PKR" {% if company.currency == 'PKR' %}selected{% endif %}>PKR - Pakistani Rupee</option>
+              <option value="USD" {% if company.currency == 'USD' %}selected{% endif %}>USD - US Dollar</option>
+              <option value="EUR" {% if company.currency == 'EUR' %}selected{% endif %}>EUR - Euro</option>
+              <option value="GBP" {% if company.currency == 'GBP' %}selected{% endif %}>GBP - British Pound</option>
+              <option value="SAR" {% if company.currency == 'SAR' %}selected{% endif %}>SAR - Saudi Riyal</option>
+              <option value="AED" {% if company.currency == 'AED' %}selected{% endif %}>AED - UAE Dirham</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Currency Symbol</label>
+            <input type="text" name="currency_symbol" value="{{ company.currency_symbol or 'Rs.' }}" class="w-full">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Timezone</label>
+            <select name="timezone" class="w-full">
+              <option value="Asia/Karachi" {% if company.timezone == 'Asia/Karachi' %}selected{% endif %}>Asia/Karachi (PKT)</option>
+              <option value="Asia/Dubai" {% if company.timezone == 'Asia/Dubai' %}selected{% endif %}>Asia/Dubai (GST)</option>
+              <option value="Asia/Riyadh" {% if company.timezone == 'Asia/Riyadh' %}selected{% endif %}>Asia/Riyadh (AST)</option>
+              <option value="UTC" {% if company.timezone == 'UTC' %}selected{% endif %}>UTC</option>
+            </select>
+          </div>
+        </div>
+        <div class="mt-6 flex gap-3">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+        </div>
+      </form>
+    </div>
+
+    {% elif tab == 'periods' %}
+    <!-- ═══════ FINANCIAL PERIODS ═══════ -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-lg flex items-center gap-2"><i class="fas fa-calendar-alt text-purple-600"></i> Financial Periods</h2>
+        <form method="POST" action="{{ url_for('finance_settings.seed_periods') }}" class="inline">
+          <button type="submit" class="btn btn-outline btn-sm"><i class="fas fa-magic"></i> Seed Current FY</button>
+        </form>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="report-table">
+          <thead>
+            <tr><th>Fiscal Year</th><th>Period</th><th>Start</th><th>End</th><th>Status</th><th class="no-print">Actions</th></tr>
+          </thead>
+          <tbody>
+            {% for p in periods %}
+            <tr>
+              <td><span class="font-semibold">{{ p.fiscal_year }}</span></td>
+              <td>{{ p.period_name }}</td>
+              <td>{{ p.start_date.strftime('%d %b %Y') }}</td>
+              <td>{{ p.end_date.strftime('%d %b %Y') }}</td>
+              <td>
+                {% if p.is_closed %}
+                <span class="badge badge-blue">Closed</span>
+                {% elif p.is_open %}
+                <span class="badge badge-green">Open</span>
+                {% else %}
+                <span class="badge badge-purple">Pending</span>
+                {% endif %}
+              </td>
+              <td class="no-print">
+                {% if p.is_open and not p.is_closed %}
+                <form method="POST" action="{{ url_for('finance_settings.close_period', id=p.id) }}" class="inline" onsubmit="return confirm('Close period {{ p.period_name }}? No further entries allowed.');">
+                  <button type="submit" class="btn btn-danger btn-sm"><i class="fas fa-lock"></i> Close</button>
+                </form>
+                {% elif p.is_closed %}
+                <form method="POST" action="{{ url_for('finance_settings.reopen_period', id=p.id) }}" class="inline" onsubmit="return confirm('Reopen period {{ p.period_name }}?');">
+                  <button type="submit" class="btn btn-outline btn-sm"><i class="fas fa-unlock"></i> Reopen</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-slate-400 py-4">No periods defined. Click "Seed Current FY" to auto-generate.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <details class="mt-6 no-print">
+        <summary class="text-sm font-medium text-blue-600 cursor-pointer"><i class="fas fa-plus-circle"></i> Add Custom Period</summary>
+        <form method="POST" action="{{ url_for('finance_settings.add_period') }}" class="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
+          <input type="text" name="fiscal_year" placeholder="Fiscal Year (e.g. 2025-2026)" required class="w-full">
+          <input type="text" name="period_name" placeholder="Period Name (e.g. Jan 2026)" required class="w-full">
+          <input type="date" name="start_date" required class="w-full">
+          <div class="flex gap-2">
+            <input type="date" name="end_date" required class="w-full">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Add</button>
+          </div>
+        </form>
+      </details>
+    </div>
+
+    {% elif tab == 'rights' %}
+    <!-- ═══════ USER RIGHTS & CONTROLS ═══════ -->
+    <div class="card mb-6">
+      <h2 class="font-bold text-lg mb-4 flex items-center gap-2"><i class="fas fa-users text-indigo-600"></i> User Access</h2>
+      <div class="overflow-x-auto">
+        <table class="report-table">
+          <thead>
+            <tr><th>User</th><th>Role</th><th>HR Access</th><th>Inventory Access</th><th>Status</th><th class="no-print">Actions</th></tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+            <tr>
+              <td>
+                <div class="font-medium">{{ u.full_name }}</div>
+                <div class="text-xs text-slate-400">{{ u.email }}</div>
+              </td>
+              <td><span class="badge {% if u.is_admin() %}badge-purple{% elif u.is_manager() %}badge-blue{% else %}badge-green{% endif %}">{{ u.get_role_name() }}</span></td>
+              <td>
+                <form method="POST" action="{{ url_for('finance_settings.update_user_access', uid=u.id) }}" class="inline">
+                  <input type="hidden" name="has_hr_access" value="0">
+                  <input type="checkbox" name="has_hr_access" value="1" {% if u.has_hr_access %}checked{% endif %} onchange="this.form.submit()">
+                </form>
+              </td>
+              <td>
+                <form method="POST" action="{{ url_for('finance_settings.update_user_access', uid=u.id) }}" class="inline">
+                  <input type="hidden" name="has_inventory_access" value="0">
+                  <input type="checkbox" name="has_inventory_access" value="1" {% if u.has_inventory_access %}checked{% endif %} onchange="this.form.submit()">
+                </form>
+              </td>
+              <td>
+                {% if u.is_active %}
+                <span class="badge badge-green">Active</span>
+                {% else %}
+                <span class="badge badge-blue">Inactive</span>
+                {% endif %}
+              </td>
+              <td class="no-print">
+                <form method="POST" action="{{ url_for('finance_settings.deactivate_user', uid=u.id) }}" class="inline" onsubmit="return confirm('Toggle active status for {{ u.full_name }}?');">
+                  <button type="submit" class="btn btn-outline btn-sm">
+                    {% if u.is_active %}<i class="fas fa-ban"></i> Deactivate{% else %}<i class="fas fa-check"></i> Activate{% endif %}
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="font-bold text-lg mb-4 flex items-center gap-2"><i class="fas fa-shield-alt text-emerald-600"></i> Role Permissions</h2>
+      {% for role in roles %}
+      <details class="mb-4" {% if loop.first %}open{% endif %}>
+        <summary class="font-semibold text-sm cursor-pointer text-slate-700 mb-2">
+          <i class="fas {% if role.name == 'admin' %}fa-crown text-yellow-500{% elif role.name == 'manager' %}fa-user-tie text-blue-500{% else %}fa-user text-slate-500{% endif %}"></i>
+          {{ role.name|capitalize }}
+        </summary>
+        <div class="overflow-x-auto">
+          <table class="report-table text-xs">
+            <thead>
+              <tr><th>Resource</th><th class="w-16">Read</th><th class="w-16">Write</th><th class="w-16">Delete</th></tr>
+            </thead>
+            <tbody>
+              {% for res in resources %}
+              {% set perm = namespace(read=0, write=0, delete=0) %}
+              {% for p in role.permissions if p.resource == res %}
+                {% set _ = perm.__setattr__('read', p.can_read) %}
+                {% set _ = perm.__setattr__('write', p.can_write) %}
+                {% set _ = perm.__setattr__('delete', p.can_delete) %}
+              {% endfor %}
+              <tr>
+                <td class="capitalize">{{ res.replace('_', ' ') }}</td>
+                <td>
+                  <form method="POST" action="{{ url_for('finance_settings.update_permissions') }}" class="inline">
+                    <input type="hidden" name="role_id" value="{{ role.id }}">
+                    <input type="hidden" name="resource" value="{{ res }}">
+                    <input type="hidden" name="can_read" value="0">
+                    <input type="checkbox" name="can_read" value="1" {% if perm.read %}checked{% endif %} onchange="this.form.submit()">
+                  </form>
+                </td>
+                <td>
+                  <form method="POST" action="{{ url_for('finance_settings.update_permissions') }}" class="inline">
+                    <input type="hidden" name="role_id" value="{{ role.id }}">
+                    <input type="hidden" name="resource" value="{{ res }}">
+                    <input type="hidden" name="can_write" value="0">
+                    <input type="checkbox" name="can_write" value="1" {% if perm.write %}checked{% endif %} onchange="this.form.submit()">
+                  </form>
+                </td>
+                <td>
+                  <form method="POST" action="{{ url_for('finance_settings.update_permissions') }}" class="inline">
+                    <input type="hidden" name="role_id" value="{{ role.id }}">
+                    <input type="hidden" name="resource" value="{{ res }}">
+                    <input type="hidden" name="can_delete" value="0">
+                    <input type="checkbox" name="can_delete" value="1" {% if perm.delete %}checked{% endif %} onchange="this.form.submit()">
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      {% else %}
+      <p class="text-slate-500 text-center py-4">No roles defined.</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
