@@ -325,7 +325,10 @@ def create_app():
     with app.app_context():
         try:
             db.create_all()
-            seed_all_data(app)
+            if os.environ.get("VERCEL_ENV"):
+                print("Vercel: skipping seed data for cold-start speed")
+            else:
+                seed_all_data(app)
         except Exception as e:
             import traceback
             print("DB INIT ERROR:", e)

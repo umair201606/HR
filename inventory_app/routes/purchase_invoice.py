@@ -6,7 +6,7 @@ from ..models.purchase_invoice import InvPurchaseInvoice, InvPurchaseInvoiceItem
 from ..models.supplier import InvSupplier
 from ..models.product import InvProduct
 from ..models.stock_movement import InvStockMovement
-from ..models.voucher import InvConsumptionItem, InvScrapItem, InvStockAdjustmentItem
+from shared.models.vouchers import ConsumptionItem as ConsItem, ScrapItem, StockAdjustmentItem as AdjItem
 
 inv_pinv_bp = Blueprint("inv_purchase_invoice", __name__,
                          url_prefix="/inventory/purchase-invoice")
@@ -173,18 +173,18 @@ def unapprove_invoice(id):
     # Dependency check: has any item been consumed/sold/adjusted?
     product_ids = [item.product_id for item in inv.items.all() if item.product_id]
     if product_ids:
-        cons = InvConsumptionItem.query.filter(
-            InvConsumptionItem.product_id.in_(product_ids)
+        cons = ConsItem.query.filter(
+            ConsItem.product_id.in_(product_ids)
         ).first()
         if cons:
             return jsonify({"ok": False, "error": "Cannot unapprove: Items already consumed"}), 400
-        scrap = InvScrapItem.query.filter(
-            InvScrapItem.product_id.in_(product_ids)
+        scrap = ScrapItem.query.filter(
+            ScrapItem.product_id.in_(product_ids)
         ).first()
         if scrap:
             return jsonify({"ok": False, "error": "Cannot unapprove: Items already scrapped"}), 400
-        adj = InvStockAdjustmentItem.query.filter(
-            InvStockAdjustmentItem.product_id.in_(product_ids)
+        adj = AdjItem.query.filter(
+            AdjItem.product_id.in_(product_ids)
         ).first()
         if adj:
             return jsonify({"ok": False, "error": "Cannot unapprove: Items already adjusted"}), 400
