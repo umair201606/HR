@@ -22,7 +22,7 @@ class Config:
         except (OSError, IOError):
             _fallback_to_memory = True
 
-    # Use SQLite for local dev unless explicitly set to Neon
+    # Neon/Postgres: resolve DNS to IP + add endpoint option (skip if already present)
     if "neon.tech" in (SQLALCHEMY_DATABASE_URI or ""):
         try:
             import urllib.parse, socket
@@ -31,13 +31,21 @@ class Config:
             if hostname:
                 ip = socket.gethostbyname(hostname)
                 endpoint = hostname.split(".")[0]
-                new_netloc = parsed.netloc.replace(hostname, ip)
-                SQLALCHEMY_DATABASE_URI = parsed._replace(netloc=new_netloc).geturl()
-                sep = "&" if "?" in SQLALCHEMY_DATABASE_URI else "?"
-                SQLALCHEMY_DATABASE_URI += f"{sep}options=endpoint%3D{endpoint}&sslmode=require"
-                print(f"    DNS: {hostname} -> {ip}")
+                # Only replace hostname with IP if the URL uses pooler
+                if "pooler" in hostname:
+                    new_netloc = parsed.netloc.replace(hostname, ip)
+                    SQLALCHEMY_DATABASE_URI = parsed._replace(netloc=new_netloc).geturl()
+                # Add endpoint option only if not already present
+                if f"endpoint={endpoint}" not in SQLALCHEMY_DATABASE_URI and f"endpoint%3D{endpoint}" not in SQLALCHEMY_DATABASE_URI:
+                    sep = "&" if "?" in SQLALCHEMY_DATABASE_URI else "?"
+                    SQLALCHEMY_DATABASE_URI += f"{sep}options=endpoint%3D{endpoint}"
+                # Add sslmode=require only if not already present
+                if "sslmode" not in SQLALCHEMY_DATABASE_URI.lower():
+                    sep2 = "&" if "?" in SQLALCHEMY_DATABASE_URI else "?"
+                    SQLALCHEMY_DATABASE_URI += f"{sep2}sslmode=require"
         except Exception:
-            print("    DNS failed, trying SQLite fallback")
+            import traceback; traceback.print_exc()
+            print("    DNS/Neon config failed, trying SQLite fallback")
             if _fallback_to_memory:
                 SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
             else:
