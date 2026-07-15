@@ -1,0 +1,30 @@
+{# Print-only company letterhead for invoices/vouchers/forms.
+   Hidden on screen; shown only when printing. Pass an optional `doc_title`. #}
+<div class="print-letterhead">
+  <div class="print-lh-top">
+    {% if company and company.logo_url %}<img src="{{ company.logo_url }}" class="print-lh-logo" alt="">{% endif %}
+    <div class="print-lh-info">
+      <div class="print-lh-name">{{ company.company_name if company else 'My Company' }}</div>
+      <div class="print-lh-addr">
+        {%- if company %}
+        {{ company.address or '' }}{% if company.city %}, {{ company.city }}{% endif %}{% if company.country %}, {{ company.country }}{% endif %}<br>
+        {% if company.phone %}Tel: {{ company.phone }}{% endif %}{% if company.email %} &bull; {{ company.email }}{% endif %}{% if company.website %} &bull; {{ company.website }}{% endif %}
+        {% if company.tax_id %}<br>NTN/Tax#: {{ company.tax_id }}{% endif %}{% if company.registration_number %} &bull; Reg#: {{ company.registration_number }}{% endif %}
+        {%- endif %}
+      </div>
+    </div>
+  </div>
+  {% if doc_title %}<div class="print-lh-doctitle">{{ doc_title }}</div>{% endif %}
+</div>
+<style>
+.print-letterhead{display:none}
+@media print{
+  .print-letterhead{display:block;border-bottom:2.5px solid #1e293b;padding-bottom:8px;margin-bottom:14px}
+  .print-lh-top{display:flex;align-items:center;gap:14px}
+  .print-lh-logo{max-height:56px;max-width:180px}
+  .print-lh-name{font-size:20px;font-weight:800;color:#1e293b;line-height:1.1}
+  .print-lh-addr{font-size:9.5px;color:#334155;line-height:1.5;margin-top:3px}
+  .print-lh-doctitle{text-align:center;font-size:15px;font-weight:700;letter-spacing:1.5px;
+    text-transform:uppercase;color:#1e293b;margin-top:10px}
+}
+</style>

@@ -133,15 +133,7 @@
                 </div>
             </header>
             <div class="content-area">
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                <div class="flash-messages">
-                    {% for category, message in messages %}
-                    <div class="flash-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-                {% endwith %}
+                {% include '_flash.html' %}
                 {% block back_nav %}
                 {% if back_url %}
                 <a href="{{ back_url }}" class="btn btn-link" style="margin-bottom:8px;">&larr; Back</a>
