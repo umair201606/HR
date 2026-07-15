@@ -8,6 +8,9 @@
 *,*::before,*::after{box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:24px;background:#f5f5f5;font-size:13px;color:#1a1a2e}
 .pa{max-width:750px;margin:0 auto;background:#fff;border-radius:6px;box-shadow:0 1px 8px rgba(0,0,0,.07);padding:28px 36px}
+.co{text-align:center;margin-bottom:10px}
+.co-name{font-size:19px;font-weight:800;color:#1a1a2e;line-height:1.1}
+.co-addr{font-size:10px;color:#555;margin-top:2px;line-height:1.4}
 .hdr{border-bottom:2px solid #1a1a2e;padding-bottom:12px;margin-bottom:20px;text-align:center}
 .hdr h1{margin:0;font-size:18px;text-transform:uppercase;letter-spacing:.5px}
 .hdr .no{font-size:14px;color:#6c63ff;font-weight:600;margin-top:2px}
@@ -41,6 +44,14 @@ tfoot td{font-weight:700;background:#f8f9ff;border-top:2px solid #1a1a2e;padding
 </head>
 <body>
 <div class="pa">
+  <div class="co">
+    <div class="co-name">{{ company.company_name if company else 'My Company' }}</div>
+    <div class="co-addr">
+      {%- if company %}{{ company.address or '' }}{% if company.city %}, {{ company.city }}{% endif %}
+      {% if company.phone %} &bull; Tel: {{ company.phone }}{% endif %}{% if company.email %} &bull; {{ company.email }}{% endif %}
+      {% if company.tax_id %} &bull; NTN: {{ company.tax_id }}{% endif %}{% endif -%}
+    </div>
+  </div>
   <div class="hdr">
     <h1>{{ labels[voucher.voucher_type] }}</h1>
     <div class="no">{{ voucher.voucher_number }}</div>

@@ -53,6 +53,15 @@ def _create_app():
     def inject_now():
         return {"now": __import__("datetime").datetime.utcnow()}
 
+    @app.context_processor
+    def inject_company():
+        # Company letterhead info for print headers on invoices/vouchers/forms.
+        try:
+            from shared.models.company_settings import CompanyInfo
+            return {"company": CompanyInfo.get()}
+        except Exception:
+            return {"company": None}
+
     @app.route("/")
     def index():
         if current_user.is_authenticated:
