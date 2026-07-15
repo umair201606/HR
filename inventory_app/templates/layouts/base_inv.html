@@ -165,15 +165,7 @@
         </div>
       </header>
       <div class="content-area">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="flash-messages">
-          {% for category, message in messages %}
-          <div class="flash-{{ category }}">{{ message }}</div>
-          {% endfor %}
-        </div>
-        {% endif %}
-        {% endwith %}
+        {% include '_flash.html' %}
         {% block content %}{% endblock %}
       </div>
     </main>
