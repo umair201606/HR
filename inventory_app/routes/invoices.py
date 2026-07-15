@@ -229,7 +229,7 @@ def unapprove_invoice(id):
 
     reverse_journal_entry("SI", inv.id, current_user.id)
 
-    inv.voucher_status = "unpaid"
+    inv.voucher_status = "unapproved"
     inv.payment_status = "unpaid"
     inv.approved_by = None
     inv.approved_at = None
@@ -245,7 +245,7 @@ def unapprove_invoice(id):
                 prod.current_stock += item.quantity
 
     db.session.commit()
-    return jsonify({"ok": True, "voucher_status": "unpaid",
+    return jsonify({"ok": True, "voucher_status": "unapproved",
                     "message": "Invoice unapproved and unlocked"})
 
 
