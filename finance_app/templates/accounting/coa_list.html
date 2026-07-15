@@ -1,0 +1,72 @@
+{% extends "accounting/base_acct.html" %}
+{% block title %}Chart of Accounts{% endblock %}
+{% block page_title %}Chart of Accounts{% endblock %}
+{% block extra_css %}
+<style>
+.tree-row{display:flex;align-items:center;padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;transition:background .1s}
+.tree-row:hover{background:#f8fafc}
+.tree-row .indent{display:inline-block;min-width:20px}
+.tree-row .lvl-badge{display:inline-block;width:20px;height:20px;border-radius:4px;text-align:center;line-height:20px;font-size:10px;font-weight:700;color:#fff;margin-right:10px;flex-shrink:0}
+.lvl1{background:#1e293b}
+.lvl2{background:#475569}
+.lvl3{background:#64748b}
+.lvl4{background:#94a3b8}
+.tree-row .acct-name{font-weight:500;color:#1e293b}
+.tree-row .acct-code{color:#94a3b8;font-family:monospace;font-size:11px;margin-left:8px}
+.tree-row .acct-type{font-size:11px;color:#94a3b8;margin-left:10px;font-style:italic}
+.tree-row .actions{margin-left:auto;display:flex;gap:4px;flex-shrink:0}
+.tree-row .fixed-badge{font-size:10px;background:#e0f2f1;color:#0f5257;padding:1px 6px;border-radius:4px;margin-left:8px}
+.bdg-bsm{display:inline-block;padding:2px 8px;font-size:11px;border-radius:4px;text-decoration:none}
+.tree-header{display:flex;align-items:center;padding:8px 10px;background:#f1f5f9;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #0f5257}
+</style>
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <span style="font-size:14px;color:#64748b;">{{ tree|length }} accounts</span>
+    <a href="{{ url_for('coa.add_account') }}" class="btn btn-p">+ New Account</a>
+  </div>
+
+  <div class="card" style="padding:0;">
+    <div class="tree-header">
+      <span style="width:30px;"></span>
+      <span style="flex:1;">Account</span>
+      <span style="width:120px;text-align:center;">Level</span>
+      <span style="width:80px;text-align:center;">Children</span>
+      <span style="width:140px;text-align:center;">Actions</span>
+    </div>
+    {% for row in tree %}
+    {% set a = row.acct %}
+    {% set d = row.depth %}
+    <div class="tree-row">
+      <span class="indent" style="width:{{ d * 24 }}px;"></span>
+      <span class="lvl-badge lvl{{ a.level }}">{{ a.level }}</span>
+      <span class="acct-name">{{ a.name }}</span>
+      <span class="acct-code">{{ a.code }}</span>
+      <span class="acct-type">{{ a.type }}</span>
+      {% if a.is_fixed %}<span class="fixed-badge">fixed</span>{% endif %}
+      {% if not a.is_active %}<span style="font-size:10px;color:#ef4444;margin-left:6px;">inactive</span>{% endif %}
+      <span style="margin-left:auto;font-size:11px;color:#94a3b8;width:120px;text-align:center;">
+        {{ level_labels.get(a.level, '') }}
+      </span>
+      <span style="width:80px;text-align:center;font-size:11px;color:#64748b;">
+        {{ a.children|length if a.children is defined else 0 }}
+      </span>
+      <span class="actions" style="width:140px;justify-content:center;">
+        {% if a.level < 4 %}
+          <a href="{{ url_for('coa.add_account', parent_id=a.id) }}" class="bdg-bsm" style="background:#e0f2f1;color:#0f5257;">+Child</a>
+        {% endif %}
+        <a href="{{ url_for('coa.edit_account', id=a.id) }}" class="bdg-bsm" style="background:#eef2ff;color:#4338ca;">Edit</a>
+        {% if a.can_delete() %}
+        <form method="POST" action="{{ url_for('coa.delete_account', id=a.id) }}" style="display:inline" onsubmit="return confirm('Delete {{ a.name }}?');">
+          <button type="submit" class="bdg-bsm" style="background:#fef2f2;color:#dc2626;border:none;cursor:pointer;">Del</button>
+        </form>
+        {% endif %}
+      </span>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:40px;color:#94a3b8;">No accounts. Seed the database first.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

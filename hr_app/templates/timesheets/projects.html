@@ -37,7 +37,7 @@
                     <td><span class="badge badge-{{ 'success' if p.status == 'active' else 'warning' }}">{{ p.status }}</span></td>
                     <td>{{ p.work_packages.count() }}</td>
                 </tr>
-                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No projects</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No projects</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

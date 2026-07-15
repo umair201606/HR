@@ -137,7 +137,22 @@ body{background:var(--bg);font-family:Inter,-apple-system,BlinkMacSystemFont,'Se
   .tb-w{border-radius:0;border-left:none;border-right:none}
   .modal-b{width:95vw;padding:16px}
 }
-@media print{.sidebar,.topbar,.ab,.ga,.toast-c,.ac-dd,.btn,.ra,.modal-o,.tb-w::after{display:none!important}.wrap{padding:0}.card{box-shadow:none;border:none}body{background:#fff}}
+@media print{
+.sidebar,.topbar,.ab,.ga,.toast-c,.ac-dd,.btn,.ra,.modal-o,.tb-w::after,.vtype-pills,.sli{display:none!important}
+.wrap{padding:0;max-width:none}
+.card{box-shadow:none;border:none;margin-bottom:0}
+.card-h{font-size:9px;padding:6px 12px}
+.card-b{padding:8px 12px}
+.tb{font-size:10px}
+.tb th,.tb td{padding:3px 5px}
+.inp,.sel{padding:3px 6px;font-size:10px;border:none;background:transparent}
+.inp:disabled{background:transparent;color:#1a1a2e}
+.lbl{font-size:8px}
+.hdr-g{gap:8px}
+.btm{font-size:10px}
+body{background:#fff;font-size:10px}
+img{max-height:30px}
+}
 </style>
 {% endblock %}
 

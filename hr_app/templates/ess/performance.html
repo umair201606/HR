@@ -20,7 +20,7 @@
                     <td>{{ r.feedback[:50] if r.feedback else '-' }}</td>
                     <td>{{ r.completed_at.strftime('%d-%b-%Y') if r.completed_at else '-' }}</td>
                 </tr>
-                {% else %}<tr><td colspan="7" class="text-center" style="color:#999;">No reviews yet</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="7" class="text-center" style="color:var(--muted);">No reviews yet</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
@@ -43,7 +43,7 @@
                     </td>
                     <td><span class="badge badge-{{ 'success' if g.status == 'completed' else 'info' }}">{{ g.status }}</span></td>
                 </tr>
-                {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No goals set</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="4" class="text-center" style="color:var(--muted);">No goals set</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

@@ -33,7 +33,7 @@ class PayrollRun(db.Model):
     month = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     run_date = db.Column(db.DateTime, default=datetime.utcnow)
-    status = db.Column(db.String(20), default="draft")
+    status = db.Column(db.String(20), default="unapproved")
     total_gross = db.Column(db.Float, default=0.0)
     total_deductions = db.Column(db.Float, default=0.0)
     total_net = db.Column(db.Float, default=0.0)

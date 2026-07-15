@@ -18,7 +18,7 @@
         <button class="btn btn-sm btn-primary" id="show-ann-form">+ New</button>
         {% endif %}
     </div>
-    <div id="ann-form" class="hidden" style="margin-bottom:14px;padding:14px;background:#f8f9fa;border-radius:6px;">
+    <div id="ann-form" class="hidden" style="margin-bottom:14px;padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:3px;">
         <form method="POST" action="{{ url_for('workplace.create_announcement') }}">
             <div class="form-group"><input type="text" name="title" class="form-control" placeholder="Title" required></div>
             <div class="form-group"><textarea name="content" class="form-control form-textarea" placeholder="Content" required></textarea></div>
@@ -33,16 +33,16 @@
         </form>
     </div>
     {% for a in announcements[:5] %}
-    <div style="padding:10px 0;border-bottom:1px solid #f0f0f0;">
+    <div style="padding:10px 0;border-bottom:1px solid var(--line);">
         <div class="flex-between">
             <strong style="font-size:13px;">{{ a.title }}</strong>
             <span class="badge badge-{{ 'danger' if a.priority == 'urgent' else 'warning' if a.priority == 'high' else 'info' }}">{{ a.priority }}</span>
         </div>
-        <p style="font-size:12px;color:#666;margin-top:4px;">{{ a.content[:150] }}{% if a.content|length > 150 %}...{% endif %}</p>
-        <div style="font-size:11px;color:#999;margin-top:4px;">{{ a.author.full_name }} &middot; {{ a.created_at.strftime('%d-%b-%Y') }}</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px;">{{ a.content[:150] }}{% if a.content|length > 150 %}...{% endif %}</p>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">{{ a.author.full_name }} &middot; {{ a.created_at.strftime('%d-%b-%Y') }}</div>
     </div>
     {% else %}
-    <p style="color:#999;font-size:13px;">No announcements</p>
+    <p style="color:var(--muted);font-size:13px;">No announcements</p>
     {% endfor %}
 </div>
 
@@ -50,17 +50,17 @@
     <div class="card">
         <div class="card-header">Upcoming Events</div>
         {% for e in events %}
-        <div style="padding:8px 0;border-bottom:1px solid #f0f0f0;">
+        <div style="padding:8px 0;border-bottom:1px solid var(--line);">
             <strong style="font-size:13px;">{{ e.title }}</strong>
-            <div style="font-size:12px;color:#666;">{{ e.event_date }} {% if e.location %} &middot; {{ e.location }}{% endif %}</div>
+            <div style="font-size:12px;color:var(--muted);">{{ e.event_date }} {% if e.location %} &middot; {{ e.location }}{% endif %}</div>
         </div>
-        {% else %}<p style="color:#999;font-size:13px;">No upcoming events</p>{% endfor %}
+        {% else %}<p style="color:var(--muted);font-size:13px;">No upcoming events</p>{% endfor %}
     </div>
     <div class="card">
         <div class="card-header">Task Boards</div>
         {% for b in boards %}
-        <a href="{{ url_for('workplace.kanban') }}?board={{ b.id }}" style="display:block;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">{{ b.title }}</a>
-        {% else %}<p style="color:#999;font-size:13px;">No boards yet</p>{% endfor %}
+        <a href="{{ url_for('workplace.kanban') }}?board={{ b.id }}" style="display:block;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;">{{ b.title }}</a>
+        {% else %}<p style="color:var(--muted);font-size:13px;">No boards yet</p>{% endfor %}
     </div>
 </div>
 {% endblock %}

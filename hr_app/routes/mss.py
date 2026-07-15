@@ -111,7 +111,7 @@ def approve_timesheet(aid):
         approval.week.approved_by = current_user.id
     else:
         approval.status = "rejected"
-        approval.week.status = "draft"
+        approval.week.status = "unapproved"
         if not comment:
             return jsonify({"error": "Reason required for rejection"}), 400
     approval.comment = comment

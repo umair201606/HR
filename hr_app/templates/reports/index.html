@@ -58,17 +58,17 @@
 <div class="card">
     <div class="card-header">
         <span>Results</span>
-        <span id="result-count" style="font-size:12px;color:#888;"></span>
+        <span id="result-count" style="font-size:12px;color:var(--muted);"></span>
     </div>
     <div class="table-wrap" id="report-results">
-        <p style="padding:20px;color:#999;text-align:center;">Run a report to see results</p>
+        <p style="padding:20px;color:var(--muted);text-align:center;">Run a report to see results</p>
     </div>
 </div>
 
 <div class="grid-3 mt-20">
     <div class="card">
         <div class="card-header">Attendance Report</div>
-        <p style="font-size:13px;color:#666;margin-bottom:14px;">Download monthly attendance records as CSV.</p>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Download monthly attendance records as CSV.</p>
         <form method="GET" action="{{ url_for('reports.export_attendance') }}">
             <div class="form-row">
                 <div class="form-group"><label>Month</label>
@@ -87,7 +87,7 @@
     </div>
     <div class="card">
         <div class="card-header">Leave Report</div>
-        <p style="font-size:13px;color:#666;margin-bottom:14px;">Download annual leave records as CSV.</p>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Download annual leave records as CSV.</p>
         <form method="GET" action="{{ url_for('reports.export_leaves') }}">
             <div class="form-group"><label>Year</label>
                 <select name="year" class="form-control">
@@ -99,7 +99,7 @@
     </div>
     <div class="card">
         <div class="card-header">Dashboard Analytics</div>
-        <p style="font-size:13px;color:#666;margin-bottom:14px;">View attendance trends and metrics.</p>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">View attendance trends and metrics.</p>
         <a href="{{ url_for('dashboard') }}" class="btn btn-outline">View Dashboard</a>
     </div>
 </div>
@@ -149,7 +149,7 @@ document.getElementById('run-report')?.addEventListener('click', async function(
 function renderTable(rows, columns) {
     const container = document.getElementById('report-results');
     if (rows.length === 0) {
-        container.innerHTML = '<p style="padding:20px;color:#999;text-align:center;">No results</p>';
+        container.innerHTML = '<p style="padding:20px;color:var(--muted);text-align:center;">No results</p>';
         return;
     }
     const labels = {employee:'Employee', department:'Department', total_hours:'Total Hours', overtime:'Overtime', leaves:'Leaves', sick_days:'Sick Days', late_days:'Late Days', present_days:'Days Present', pf_balance:'PF Balance', loan_balance:'Loan Balance'};
@@ -190,15 +190,15 @@ document.getElementById('export-excel')?.addEventListener('click', async functio
             const wrapper = document.createElement('div');
             wrapper.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;';
             const bar = document.createElement('div');
-            bar.style.cssText = `width:100%;background:#1a237e;border-radius:4px 4px 0 0;height:${(m.total/max)*200}px;min-height:4px;position:relative;`;
+            bar.style.cssText = `width:100%;background:var(--ledger);border-radius:2px 2px 0 0;height:${(m.total/max)*200}px;min-height:4px;position:relative;`;
             const tooltip = document.createElement('div');
-            tooltip.style.cssText = 'position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:10px;color:#1a237e;font-weight:600;white-space:nowrap;';
+            tooltip.style.cssText = 'position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--ledger);font-weight:600;white-space:nowrap;';
             tooltip.textContent = `${m.total} (L:${m.late})`;
             bar.appendChild(tooltip);
             wrapper.appendChild(bar);
             const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             const label = document.createElement('div');
-            label.style.cssText = 'font-size:9px;color:#888;margin-top:4px;';
+            label.style.cssText = 'font-size:9px;color:var(--muted);margin-top:4px;';
             label.textContent = months[m.month];
             wrapper.appendChild(label);
             container.appendChild(wrapper);

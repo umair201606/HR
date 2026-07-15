@@ -290,6 +290,7 @@ def run_payroll():
         db.session.add(pr)
         db.session.flush()
         total_gross = 0; total_ded = 0; total_net = 0; emp_count = 0
+        total_tax = 0; total_pf_ee = 0; total_pf_er = 0; total_loan = 0; total_custom = 0
 
         for pp in profiles:
             if not pp.user.is_active:
@@ -348,6 +349,12 @@ def run_payroll():
             db.session.add(slip)
             total_gross += gross; total_ded += deductions; total_net += net; emp_count += 1
 
+            total_tax += monthly_tax
+            total_pf_ee += pf_employee
+            total_pf_er += pf_employer
+            total_loan += loan_deduction
+            total_custom += custom_ded
+
             if pf_config:
                 contrib = PFContribution(user_id=pp.user_id, month=month, year=year,
                                           employee_amount=pf_employee, employer_amount=pf_employer,
@@ -368,6 +375,49 @@ def run_payroll():
         pr.total_deductions = round(total_ded, 2)
         pr.total_net = round(total_net, 2)
         pr.employee_count = emp_count
+
+        # Post salary journal entry to general ledger
+        from shared.ledger_utils import get_or_create_account, post_journal_entry
+        salary_exp = get_or_create_account("5121", "Salary Expense", "expense", parent_code="512")
+        salary_payable = get_or_create_account("2121", "Salary Payable", "liability", parent_code="212")
+        tax_payable = get_or_create_account("2122", "Income Tax Payable", "liability", parent_code="212")
+        pf_payable = get_or_create_account("2123", "PF Payable", "liability", parent_code="212")
+        loan_clearing = get_or_create_account("2124", "Loan Deductions Clearing", "liability", parent_code="212")
+        pf_exp = get_or_create_account("5122", "PF Employer Expense", "expense", parent_code="512")
+
+        lines = [{"account_id": salary_exp.id, "debit": round(total_gross, 2), "credit": 0,
+                   "description": f"Gross salary {month}/{year}"}]
+        if round(total_tax, 2) > 0:
+            lines.append({"account_id": tax_payable.id, "debit": 0, "credit": round(total_tax, 2),
+                           "description": f"Income tax deducted"})
+        if round(total_pf_ee, 2) > 0:
+            lines.append({"account_id": pf_payable.id, "debit": 0, "credit": round(total_pf_ee, 2),
+                           "description": f"PF employee contribution"})
+        if round(total_loan, 2) > 0:
+            lines.append({"account_id": loan_clearing.id, "debit": 0, "credit": round(total_loan, 2),
+                           "description": f"Loan repayment deductions"})
+        if round(total_custom, 2) > 0:
+            lines.append({"account_id": salary_payable.id, "debit": 0, "credit": round(total_custom, 2),
+                           "description": f"Custom deductions"})
+        lines.append({"account_id": salary_payable.id, "debit": 0, "credit": round(total_net, 2),
+                       "description": f"Net salary payable"})
+        post_journal_entry(voucher_type="PRL", voucher_id=pr.id,
+                           voucher_number=f"PRL-{year}{month:02d}",
+                           description=f"Payroll Run {month}/{year}",
+                           lines=lines, entry_date=datetime.utcnow(),
+                           created_by=current_user.id)
+
+        if round(total_pf_er, 2) > 0:
+            pf_lines = [{"account_id": pf_exp.id, "debit": round(total_pf_er, 2), "credit": 0,
+                          "description": f"PF employer contribution {month}/{year}"},
+                        {"account_id": pf_payable.id, "debit": 0, "credit": round(total_pf_er, 2),
+                          "description": f"PF employer contribution"}]
+            post_journal_entry(voucher_type="PRL", voucher_id=pr.id,
+                               voucher_number=f"PRL-{year}{month:02d}-PF",
+                               description=f"PF Employer Contribution {month}/{year}",
+                               lines=pf_lines, entry_date=datetime.utcnow(),
+                               created_by=current_user.id)
+
         db.session.add(PayrollAuditLog(payroll_run_id=pr.id, action="payroll_run",
                                         performed_by=current_user.id, details=f"Run for {month}/{year}",
                                         ip_address=request.remote_addr))

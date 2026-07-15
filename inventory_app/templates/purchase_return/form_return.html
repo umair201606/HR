@@ -116,7 +116,7 @@ textarea.inp{resize:vertical;font-family:inherit}
         <div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div><label class="lbl">Status</label><span class="bdg bdg-{{ status }}" id="statusBadge">{{ status|title }}</span></div>
-            <div><label class="lbl">Date</label><input type="date" class="inp" id="returnDate" value="{{ return_doc.date.strftime('%Y-%m-%d') if return_doc and return_doc.date else '' }}" {{ 'disabled' if not editable else '' }}></div>
+            <div><label class="lbl">Date</label><input type="date" name="date" class="inp" id="returnDate" value="{{ return_doc.date.strftime('%Y-%m-%d') if return_doc and return_doc.date else '' }}" {{ 'disabled' if not editable else '' }}></div>
           </div>
         </div>
       </div>
@@ -211,7 +211,7 @@ textarea.inp{resize:vertical;font-family:inherit}
         <button type="button" class="btn btn-d" id="unapproveBtn">Unapprove Return</button>
         <button type="button" class="btn btn-o" onclick="window.print()">Print</button>
       {% endif %}
-      <a href="{{ url_for('inv_purchasereturn.list_returns') }}" class="btn btn-o">Cancel</a>
+      <a href="{{ url_for('inv_purchase_return.list_returns') }}" class="btn btn-o">Cancel</a>
     </div>
   </div>
 </div>
@@ -381,6 +381,7 @@ function collectData() {
   return {
     id: document.getElementById('returnId').value || null,
     original_invoice_id: invoiceData.invoice.id, supplier_id: invoiceData.invoice.supplier_id,
+    date: document.getElementById('returnDate').value,
     notes: document.getElementById('returnNotes').value,
     reverse_expenses: document.getElementById('reverseExpenses').checked,
     gross_return_value: cv(document.getElementById('summaryGrossReturn').textContent),
@@ -393,7 +394,7 @@ function collectData() {
 }
 
 function disableAll(frozen){document.querySelectorAll('#itemsBody input, #itemsBody button, .inp, .sel, .sli, #reverseExpenses, .bsm, #saveBtn, #saveChangesBtn, #approveBtn, #originalInvoiceSelect').forEach(function(el){el.disabled=frozen})}
-function rebuildActionBar(st){var bar=document.querySelector('.ab');if(!bar)return;bar.innerHTML='';if(st==='approved'){bar.innerHTML='<button type="button" class="btn btn-d" id="unapproveBtn">Unapprove Return</button><button type="button" class="btn btn-o" onclick="window.print()">Print</button><a href="{{ url_for("inv_purchasereturn.list_returns") }}" class="btn btn-o">New Return</a>';var ub=document.getElementById('unapproveBtn');if(ub)ub.addEventListener('click',function(){showConfirm('Unapprove Return','Reverse inventory deduction and unlock quantities?',unapproveReturn)})}else if(st==='unapproved'){bar.innerHTML='<button type="button" class="btn btn-o" onclick="window.print()">Print</button><a href="{{ url_for("inv_purchasereturn.list_returns") }}" class="btn btn-o">New Return</a>'}else if(st==='new'){bar.innerHTML='<button type="button" class="btn btn-p" id="saveBtn">Save as Unapproved Return</button><a href="{{ url_for("inv_purchasereturn.list_returns") }}" class="btn btn-o">Cancel</a>';var sb=document.getElementById('saveBtn');if(sb)sb.addEventListener('click',function(){saveReturn('save')})}}
+function rebuildActionBar(st){var bar=document.querySelector('.ab');if(!bar)return;bar.innerHTML='';if(st==='approved'){bar.innerHTML='<button type="button" class="btn btn-d" id="unapproveBtn">Unapprove Return</button><button type="button" class="btn btn-o" onclick="window.print()">Print</button><a href="{{ url_for("inv_purchase_return.list_returns") }}" class="btn btn-o">New Return</a>';var ub=document.getElementById('unapproveBtn');if(ub)ub.addEventListener('click',function(){showConfirm('Unapprove Return','Reverse inventory deduction and unlock quantities?',unapproveReturn)})}else if(st==='unapproved'){bar.innerHTML='<button type="button" class="btn btn-o" onclick="window.print()">Print</button><a href="{{ url_for("inv_purchase_return.list_returns") }}" class="btn btn-o">New Return</a>'}else if(st==='new'){bar.innerHTML='<button type="button" class="btn btn-p" id="saveBtn">Save as Unapproved Return</button><a href="{{ url_for("inv_purchase_return.list_returns") }}" class="btn btn-o">Cancel</a>';var sb=document.getElementById('saveBtn');if(sb)sb.addEventListener('click',function(){saveReturn('save')})}}
 async function saveReturn(action) {
   var data = collectData();
   if (!data) return;
@@ -427,6 +428,17 @@ document.getElementById('saveBtn')?.addEventListener('click', function() { saveR
 document.getElementById('saveChangesBtn')?.addEventListener('click', function() { saveReturn('save'); });
 document.getElementById('approveBtn')?.addEventListener('click', function() { showConfirm('Approve Return', 'Approving will deduct inventory and post to supplier ledger. Proceed?', function() { saveReturn('approve'); }); });
 document.getElementById('unapproveBtn')?.addEventListener('click', function() { showConfirm('Unapprove Return', 'Reverse inventory deduction and unlock quantities?', unapproveReturn); });
+
+// Auto-populate date for new returns
+(function(){
+  var d = document.getElementById('returnDate');
+  if (d && !d.value) {
+    var n = new Date();
+    d.value = n.getFullYear() + '-' +
+      String(n.getMonth() + 1).padStart(2, '0') + '-' +
+      String(n.getDate()).padStart(2, '0');
+  }
+})();
 
 // Auto-load if editing
 (async function init() {

@@ -10,11 +10,27 @@ class ChartOfAccount(db.Model):
     name = db.Column(db.String(200), nullable=False)
     type = db.Column(db.String(50), nullable=False)
     parent_id = db.Column(db.Integer, db.ForeignKey("chart_of_accounts.id"), nullable=True)
+    level = db.Column(db.Integer, nullable=False, default=4)
+    is_fixed = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     parent = db.relationship("ChartOfAccount", remote_side=[id], backref="children")
+
+    def is_leaf(self):
+        return ChartOfAccount.query.filter_by(parent_id=self.id).count() == 0
+
+    def can_delete(self):
+        return not self.is_fixed and self.is_leaf()
+
+    def display_path(self):
+        parts = []
+        a = self
+        while a:
+            parts.append(a.name)
+            a = a.parent
+        return " > ".join(reversed(parts))
 
 
 class JournalEntry(db.Model):

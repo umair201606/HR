@@ -69,7 +69,7 @@
                         <td>{{ q.pending }}</td>
                         <td><strong>{{ q.remaining }}</strong></td>
                     </tr>
-                    {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No quotas</td></tr>{% endfor %}
+                    {% else %}<tr><td colspan="5" class="text-center" style="color:var(--muted);">No quotas</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>
@@ -91,7 +91,7 @@
                         <td><span class="badge badge-{{ 'success' if l.status == 'approved' else 'warning' if l.status == 'pending' else 'danger' }}">{{ l.status }}</span></td>
                         <td>Rs. {{ (l.remaining_amount or 0)|round|int }}</td>
                     </tr>
-                    {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No loan requests</td></tr>{% endfor %}
+                    {% else %}<tr><td colspan="4" class="text-center" style="color:var(--muted);">No loan requests</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>
@@ -112,7 +112,7 @@
                         <td><strong>Rs. {{ s.net_pay|round|int }}</strong></td>
                         <td><a href="{{ url_for('compensation.download_slip_pdf', sid=s.id) }}" class="btn btn-sm btn-primary">PDF</a></td>
                     </tr>
-                    {% else %}<tr><td colspan="3" class="text-center" style="color:#999;">No slips</td></tr>{% endfor %}
+                    {% else %}<tr><td colspan="3" class="text-center" style="color:var(--muted);">No slips</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>
@@ -133,7 +133,7 @@
                         <td>{{ r.overall_score or '-' }}</td>
                         <td>{{ r.feedback[:60] if r.feedback else '-' }}</td>
                     </tr>
-                    {% else %}<tr><td colspan="3" class="text-center" style="color:#999;">No reviews</td></tr>{% endfor %}
+                    {% else %}<tr><td colspan="3" class="text-center" style="color:var(--muted);">No reviews</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>

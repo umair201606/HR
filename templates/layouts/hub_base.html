@@ -13,7 +13,7 @@
             <h1 style="margin:0;font-size:24px;font-weight:700;color:#1f2937;">Solarkon ERP</h1>
             <p style="margin:4px 0 0;color:#6b7280;font-size:14px;">{{ current_user.full_name }} &bull; {{ current_user.get_role_name()|title }}</p>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
             {% block content %}{% endblock %}
         </div>
         <div style="text-align:center;margin-top:24px;">

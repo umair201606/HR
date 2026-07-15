@@ -34,7 +34,7 @@
                     <td>{{ 'Yes' if w.auto_approve else 'No' }}</td>
                     <td>{{ 'Active' if w.is_active else 'Inactive' }}</td>
                 </tr>
-                {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No workflows</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="5" class="text-center" style="color:var(--muted);">No workflows</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

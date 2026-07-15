@@ -5,7 +5,7 @@
     <div>
         <h1>My Provident Fund</h1>
         <p class="subtitle">
-            Current Balance: <strong style="color:#1b5e20;font-size:20px;">Rs. {{ balance|round|int }}</strong>
+            Current Balance: <strong style="color:var(--green);font-size:20px;">Rs. {{ balance|round|int }}</strong>
         </p>
     </div>
 </div>
@@ -30,7 +30,7 @@
                     <td>Rs. {{ c.employer_amount|round|int }}</td>
                     <td><strong>Rs. {{ c.total_amount|round|int }}</strong></td>
                 </tr>
-                {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No contributions yet</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="4" class="text-center" style="color:var(--muted);">No contributions yet</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
@@ -47,10 +47,10 @@
                     <td>{{ e.transaction_date }}</td>
                     <td>{{ e.transaction_type }}</td>
                     <td>{{ e.description[:40] or '-' }}</td>
-                    <td style="color:#2e7d32;">{% if e.credit > 0 %}Rs. {{ e.credit|round|int }}{% endif %}</td>
-                    <td style="color:#c62828;">{% if e.debit > 0 %}Rs. {{ e.debit|round|int }}{% endif %}</td>
+                    <td style="color:var(--green);">{% if e.credit > 0 %}Rs. {{ e.credit|round|int }}{% endif %}</td>
+                    <td style="color:var(--red);">{% if e.debit > 0 %}Rs. {{ e.debit|round|int }}{% endif %}</td>
                 </tr>
-                {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No transactions</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="5" class="text-center" style="color:var(--muted);">No transactions</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

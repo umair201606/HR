@@ -17,7 +17,7 @@
                 <h2>Solarkon ERP</h2>
             </div>
             <div style="padding:4px 16px 0;">
-                <a href="{{ url_for('dashboard.hub') }}" style="font-size:12px;color:rgba(255,255,255,0.5);text-decoration:none;">&larr; ERP Hub</a>
+                <a href="{{ url_for('dashboard.hub') }}" style="font-size:12px;color:rgba(255,255,255,0.5);text-decoration:none;letter-spacing:0.03em;">&larr; ERP Hub</a>
             </div>
             <div class="sidebar-user">
                 <div class="sidebar-user-avatar">
@@ -86,7 +86,6 @@
                     {'endpoint': 'digital_files.admin', 'icon': '&#128193;', 'label': 'All Files', 'active_check': ep == 'digital_files.admin'},
                     {'endpoint': 'pf.config', 'icon': '&#9881;', 'label': 'PF Config', 'active_check': ep == 'pf.config'},
                     {'endpoint': 'auth.user_list', 'icon': '&#128101;', 'label': 'Users', 'active_check': ep in ('auth.user_list','auth.user_add','auth.user_edit')},
-                    {'endpoint': 'inv_chart_of_accounts.list_accounts', 'icon': '&#128202;', 'label': 'Chart of Accounts', 'active_check': ep.startswith('inv_chart_of_accounts.')},
                 ] %}
                 {{ nav_group('Administration', '&#128295;', admin_items) }}
                 {% endif %}

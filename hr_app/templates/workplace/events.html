@@ -41,7 +41,7 @@
                     <td>{{ e.location or '-' }}</td>
                     <td>{{ e.creator.full_name }}</td>
                 </tr>
-                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No events</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No events</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

@@ -6,30 +6,39 @@ class InvInvoice(db.Model):
     __tablename__ = "inv_invoices"
     id = db.Column(db.Integer, primary_key=True)
     invoice_number = db.Column(db.String(50), unique=True, nullable=False)
+    voucher_number = db.Column(db.String(50), unique=True, nullable=False)
     sales_order_id = db.Column(db.Integer, db.ForeignKey("inv_sales_orders.id"))
     customer_id = db.Column(db.Integer, db.ForeignKey("inv_customers.id"), nullable=False)
     invoice_date = db.Column(db.DateTime, default=datetime.utcnow)
     due_date = db.Column(db.DateTime)
-    status = db.Column(db.String(20), default="draft")
+    voucher_status = db.Column(db.String(20), default="unapproved")
+    payment_status = db.Column(db.String(20), default="unpaid")
 
     discount_mode = db.Column(db.String(20), default="general")
+    charges_mode = db.Column(db.String(20), default="general")
     tax_mode = db.Column(db.String(20), default="general")
 
     global_discount_pct = db.Column(db.Float, default=0)
     global_discount_value = db.Column(db.Float, default=0)
+    global_delivery = db.Column(db.Float, default=0)
+    global_installation = db.Column(db.Float, default=0)
     global_sales_tax_pct = db.Column(db.Float, default=0)
 
     subtotal = db.Column(db.Float, default=0)
     total_discount = db.Column(db.Float, default=0)
+    total_charges = db.Column(db.Float, default=0)
     total_tax = db.Column(db.Float, default=0)
     total_amount = db.Column(db.Float, default=0)
     paid_amount = db.Column(db.Float, default=0)
 
     notes = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    approved_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    approved_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    creator = db.relationship("User", backref="created_invoices")
+    creator = db.relationship("User", foreign_keys=[created_by], backref="created_invoices")
+    approver = db.relationship("User", foreign_keys=[approved_by])
     items = db.relationship("InvInvoiceItem", backref="invoice",
                             lazy="dynamic", cascade="all, delete-orphan")
 
@@ -46,9 +55,13 @@ class InvInvoiceItem(db.Model):
 
     discount_pct = db.Column(db.Float, default=0)
     discount_amount = db.Column(db.Float, default=0)
+    delivery = db.Column(db.Float, default=0)
+    installation = db.Column(db.Float, default=0)
     sales_tax_pct = db.Column(db.Float, default=0)
 
     total_before_discount = db.Column(db.Float, default=0)
     total_after_discount = db.Column(db.Float, default=0)
+
+    comments = db.Column(db.Text)
 
     product = db.relationship("InvProduct", backref="invoice_items")

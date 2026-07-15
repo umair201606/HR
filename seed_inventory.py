@@ -18,7 +18,7 @@ with app.app_context():
 
     # Migrate old "draft" status to "new"
     from inventory_app.models.purchase_invoice import InvPurchaseInvoice
-    migrated = InvPurchaseInvoice.query.filter_by(status="draft").update({"status": "new"})
+    migrated = InvPurchaseInvoice.query.filter_by(status="unapproved").update({"status": "new"})
     if migrated:
         db.session.commit()
         print(f"  Migrated {migrated} invoices from 'draft' → 'new'")
@@ -121,7 +121,7 @@ with app.app_context():
     po2 = InvPurchaseOrder(
         po_number="PO-202607-0002", supplier_id=sup_objs[1].id,
         order_date=date(2026, 7, 5), expected_date=date(2026, 7, 20),
-        status="draft", notes="Office supplies restock",
+        status="unapproved", notes="Office supplies restock",
         created_by=admin.id, total_amount=115000
     )
     db.session.add(po2)
@@ -167,7 +167,7 @@ with app.app_context():
 
     so2 = InvSalesOrder(
         so_number="SO-202607-0002", customer_id=cust_objs[1].id,
-        order_date=date(2026, 7, 10), status="draft",
+        order_date=date(2026, 7, 10), status="unapproved",
         notes="Pending customer confirmation", created_by=admin.id, total_amount=34400
     )
     db.session.add(so2)

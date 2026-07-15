@@ -8,7 +8,7 @@ class TimesheetWeek(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     week_start = db.Column(db.Date, nullable=False)
     week_end = db.Column(db.Date, nullable=False)
-    status = db.Column(db.String(20), default="draft")
+    status = db.Column(db.String(20), default="unapproved")
     total_hours = db.Column(db.Float, default=0.0)
     submitted_at = db.Column(db.DateTime)
     approved_at = db.Column(db.DateTime)

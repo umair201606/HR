@@ -36,7 +36,7 @@ def create_sale():
             so_number=next_so_number(),
             customer_id=request.form.get("customer_id", type=int),
             order_date=date.today(),
-            status="draft",
+            status="unapproved",
             notes=request.form.get("notes", ""),
             created_by=current_user.id,
         )

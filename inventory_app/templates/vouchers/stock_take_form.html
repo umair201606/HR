@@ -47,7 +47,7 @@
 
   {% if not st or st.status != 'approved' %}
   <div class="form-actions">
-    <button type="submit" class="btn btn-primary" onclick="this.form.status.value='in_progress'">Save as Draft</button>
+    <button type="submit" class="btn btn-primary" onclick="this.form.status.value='in_progress'">Save as Unapproved</button>
     <button type="submit" class="btn btn-success" onclick="this.form.status.value='approved'">Approve & Create Adjustment</button>
     <a href="{{ url_for('inv_vouchers.stock_take_list') }}" class="btn btn-outline">Cancel</a>
   </div>

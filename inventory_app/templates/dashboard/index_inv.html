@@ -73,7 +73,7 @@
     {% endif %}
     {% if pending_vouchers > 0 %}
     <div class="alert-card alert-warning">
-      <strong>{{ pending_vouchers }}</strong> draft voucher{% if pending_vouchers != 1 %}s{% endif %} pending approval &mdash; <a href="{{ url_for('inv_vouchers.consumption_list') }}">View</a>
+      <strong>{{ pending_vouchers }}</strong> unapproved voucher{% if pending_vouchers != 1 %}s{% endif %} pending approval &mdash; <a href="{{ url_for('inv_vouchers.consumption_list') }}">View</a>
     </div>
     {% endif %}
   </div>

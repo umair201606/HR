@@ -84,19 +84,6 @@
             </a>
           </div>
         </div>
-        <div class="nav-group {{ 'expanded' if request.endpoint and request.endpoint.startswith('inv_chart_of_accounts') else '' }}" data-group="accounts">
-          <div class="nav-group-header">
-            <span class="nav-icon">&#128202;</span><span>Chart of Accounts</span><span class="group-chevron">&#9662;</span>
-          </div>
-          <div class="nav-group-items">
-            <a href="{{ url_for('inv_chart_of_accounts.list_accounts') }}" class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('inv_chart_of_accounts') else '' }}">
-              <span class="nav-icon">&#9632;</span><span>All Accounts</span>
-            </a>
-            <a href="{{ url_for('inv_vouchers.product_ledger_list') }}" class="nav-item {{ 'active' if request.endpoint and request.endpoint == 'inv_vouchers.product_ledger_list' or request.endpoint == 'inv_vouchers.product_ledger' else '' }}">
-              <span class="nav-icon">&#9632;</span><span>Inventory Ledger</span>
-            </a>
-          </div>
-        </div>
         <div class="nav-group {{ 'expanded' if request.endpoint and request.endpoint.startswith('inv_vouchers') else '' }}" data-group="vouchers">
           <div class="nav-group-header">
             <span class="nav-icon">&#128196;</span><span>Vouchers</span><span class="group-chevron">&#9662;</span>
@@ -113,6 +100,19 @@
             </a>
             <a href="{{ url_for('inv_vouchers.stock_take_list') }}" class="nav-item {{ 'active' if request.endpoint and request.endpoint == 'inv_vouchers.stock_take_list' or request.endpoint == 'inv_vouchers.stock_take_form' else '' }}">
               <span class="nav-icon">&#9632;</span><span>Stock Taking</span>
+            </a>
+          </div>
+        </div>
+        <div class="nav-group {{ 'expanded' if request.endpoint and request.endpoint.startswith('accounting.') else '' }}" data-group="accounting">
+          <div class="nav-group-header">
+            <span class="nav-icon">&#128202;</span><span>Accounting</span><span class="group-chevron">&#9662;</span>
+          </div>
+          <div class="nav-group-items">
+            <a href="{{ url_for('accounting.voucher_list') }}" class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('accounting.voucher') else '' }}">
+              <span class="nav-icon">&#9632;</span><span>Vouchers</span>
+            </a>
+            <a href="{{ url_for('accounting.voucher_form') }}" class="nav-item {{ 'active' if request.endpoint and request.endpoint == 'accounting.voucher_form' else '' }}">
+              <span class="nav-icon">&#9632;</span><span>+ New Voucher</span>
             </a>
           </div>
         </div>

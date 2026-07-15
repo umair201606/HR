@@ -12,7 +12,7 @@
         <tr><td style="font-weight:600;">Effective From</td><td>{{ profile.effective_from }}</td></tr>
     </table>
     {% else %}
-    <p style="color:#999;">No payroll profile configured. Contact HR.</p>
+    <p style="color:var(--muted);">No payroll profile configured. Contact HR.</p>
     {% endif %}
 </div>
 <div class="card">
@@ -31,7 +31,7 @@
                     <td><strong>Rs. {{ s.net_pay|round|int }}</strong></td>
                     <td><a href="{{ url_for('compensation.download_slip_pdf', sid=s.id) }}" class="btn btn-sm btn-primary">PDF</a></td>
                 </tr>
-                {% else %}<tr><td colspan="7" class="text-center" style="color:#999;">No slips yet</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="7" class="text-center" style="color:var(--muted);">No slips yet</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

@@ -74,10 +74,26 @@ def get_account_by_code(code):
     return ChartOfAccount.query.filter_by(code=code).first()
 
 
-def get_or_create_account(code, name, type_):
-    acct = ChartOfAccount.query.filter_by(code=code).first()
+def get_or_create_account(code, name, type_, parent_code=None):
+    acct = ChartOfAccount.query.filter_by(code=str(code)).first()
     if not acct:
-        acct = ChartOfAccount(code=code, name=name, type=type_)
+        parent = None
+        if parent_code:
+            parent = ChartOfAccount.query.filter_by(code=str(parent_code)).first()
+        if not parent:
+            # Auto-discover parent by type hierarchy
+            coa_type_map = {"asset": "Assets", "liability": "Liabilities", "equity": "Equity",
+                            "revenue": "Revenue", "expense": "Expense", "contra-expense": "Expense"}
+            l1_name = coa_type_map.get(type_)
+            if l1_name:
+                l1 = ChartOfAccount.query.filter_by(name=l1_name, level=1).first()
+                if l1:
+                    l2 = ChartOfAccount.query.filter_by(parent_id=l1.id, level=2).first()
+                    if l2:
+                        parent = ChartOfAccount.query.filter_by(parent_id=l2.id, level=3).first()
+        acct = ChartOfAccount(code=str(code), name=name, type=type_,
+                              parent_id=parent.id if parent else None,
+                              level=4)
         db.session.add(acct)
         db.session.flush()
     return acct

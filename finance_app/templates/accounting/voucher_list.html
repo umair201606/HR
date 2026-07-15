@@ -1,0 +1,110 @@
+{% extends "accounting/base_acct.html" %}
+{% block title %}Vouchers - Accounting{% endblock %}
+{% block extra_css %}
+<style>
+.bdg{display:inline-block;padding:2px 10px;font-size:11px;font-weight:700;border-radius:10px}
+.bdg-unapproved{background:#f1f5f9;color:#64748b}
+.bdg-approved{background:#dcfce7;color:#16a34a}
+</style>
+{% endblock %}
+{% block page_title %}Accounting Vouchers{% endblock %}
+{% block content %}
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <a href="{{ url_for('accounting.voucher_form') }}" class="btn btn-p">+ New Voucher</a>
+  </div>
+
+  <div class="card">
+    <div class="card-h">Filters</div>
+    <div class="card-b">
+      <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;">
+        <div>
+          <label class="lbl">Voucher Type</label>
+          <select name="vtype" class="sel" style="width:140px">
+            <option value="">All Types</option>
+            {% for vt in ['CPV','CRV','BPV','BRV','JV'] %}
+            <option value="{{ vt }}" {{ 'selected' if filters.vtype == vt else '' }}>{{ vt }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="lbl">Status</label>
+          <select name="status" class="sel" style="width:120px">
+            <option value="">All</option>
+            <option value="unapproved" {{ 'selected' if filters.status == 'unapproved' else '' }}>Unapproved</option>
+            <option value="approved" {{ 'selected' if filters.status == 'approved' else '' }}>Approved</option>
+          </select>
+        </div>
+        <div style="min-width:360px;">
+          {% with filter_mode=filter_mode, selected_period_id=selected_period_id, periods=periods, from_val=from_str, to_val=to_str %}
+          {% include "accounting/_period_filter.html" %}
+          {% endwith %}
+        </div>
+        <div style="display:flex;gap:6px;align-items:end;padding-bottom:4px;">
+          <button type="submit" class="bsm">Filter</button>
+          <a href="{{ url_for('accounting.voucher_list') }}" class="bsm">Clear</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h">Vouchers <span class="bdg bdg-unapproved">{{ vouchers|length }}</span></div>
+    <div class="tb-w">
+      <table class="tb">
+        <thead>
+          <tr>
+            <th>Voucher #</th>
+            <th>Type</th>
+            <th>Date</th>
+            <th>Cash/Bank</th>
+            <th>Status</th>
+            <th>Created By</th>
+            <th>Approved By</th>
+            <th style="width:200px">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vouchers %}
+          <tr>
+            <td><a href="{{ url_for('accounting.voucher_form', id=v.id) }}" style="font-weight:600;color:var(--primary);text-decoration:none;">{{ v.voucher_number }}</a></td>
+            <td><span class="bdg" style="background:#eef2ff;color:#4338ca;">{{ v.voucher_type }}</span></td>
+            <td>{{ v.voucher_date.strftime('%Y-%m-%d %H:%M') if v.voucher_date else '' }}</td>
+            <td>{{ v.cash_bank_account.name if v.cash_bank_account else '-' }}</td>
+            <td>
+              {% if v.status == 'unapproved' %}
+              <span class="bdg bdg-unapproved">Unapproved</span>
+              {% elif v.status == 'approved' %}
+              <span class="bdg bdg-approved">Approved</span>
+              {% endif %}
+            </td>
+            <td>{{ v.creator.full_name if v.creator else '' }}</td>
+            <td>{{ v.approver.full_name if v.approver else '' }}</td>
+            <td>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <a href="{{ url_for('accounting.voucher_form', id=v.id) }}" class="bsm">View</a>
+                {% if v.status == 'unapproved' %}
+                <a href="{{ url_for('accounting.voucher_form', id=v.id) }}" class="bsm">Edit</a>
+                <form method="POST" action="{{ url_for('accounting.approve_voucher', id=v.id) }}" style="display:inline">
+                  <button type="submit" class="bsm" style="color:var(--green);border-color:var(--green);">Approve</button>
+                </form>
+                <form method="POST" action="{{ url_for('accounting.delete_voucher', id=v.id) }}" style="display:inline" onsubmit="return confirm('Delete this voucher?')">
+                  <button type="submit" class="bsm bsm-d">Delete</button>
+                </form>
+                {% elif v.status == 'approved' %}
+                <form method="POST" action="{{ url_for('accounting.unapprove_voucher', id=v.id) }}" style="display:inline">
+                  <button type="submit" class="bsm" onclick="return confirm('Unapprove this voucher? This will reverse journal entries.')">Unapprove</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--light);">No vouchers found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

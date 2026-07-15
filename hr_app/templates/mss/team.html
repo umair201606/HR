@@ -20,7 +20,7 @@
                         <a href="{{ url_for('mss.evaluate', uid=m.id) }}" class="btn btn-sm btn-outline">Evaluate</a>
                     </td>
                 </tr>
-                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No team members</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No team members</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

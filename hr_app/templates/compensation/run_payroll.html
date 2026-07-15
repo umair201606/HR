@@ -37,12 +37,12 @@
         <div class="card-header flex-between">
             <span>Payroll Preview & Adjustments</span>
             <div style="display:flex;gap:4px;align-items:center;">
-                <span style="font-size:11px;color:#888;">Select:</span>
+                <span style="font-size:11px;color:var(--muted);">Select:</span>
                 <button type="button" class="btn btn-sm btn-outline" id="select-all">All</button>
                 <button type="button" class="btn btn-sm btn-outline" id="deselect-all">None</button>
             </div>
         </div>
-        <p style="font-size:12px;color:#888;padding:0 12px;">Edit any field on the spot. Only employees with <strong>Replace</strong> checked will be processed.</p>
+        <p style="font-size:12px;color:var(--muted);padding:0 12px;">Edit any field on the spot. Only employees with <strong>Replace</strong> checked will be processed.</p>
         <div class="table-wrap">
             <table id="payroll-table">
                 <thead>
@@ -66,9 +66,9 @@
                         <td><input type="checkbox" class="emp-check" checked></td>
                         <td>
                             <strong>{{ ed.name }}</strong><br>
-                            <span style="font-size:11px;color:#888;">{{ ed.designation }}</span>
+                            <span style="font-size:11px;color:var(--muted);">{{ ed.designation }}</span>
                             {% if ed.active_loans %}
-                            <div style="font-size:10px;color:#c62828;margin-top:2px;">
+                            <div style="font-size:10px;color:var(--red);margin-top:2px;">
                                 {% for loan in ed.active_loans %}
                                 <div>Loan #{{ loan.id }}: Bal Rs.{{ '%.0f'|format(loan.remaining_amount) }}, Inst Rs.{{ '%.0f'|format(loan.monthly_installment or loan.amount/loan.installment_months) }}</div>
                                 {% endfor %}
@@ -77,7 +77,7 @@
                         </td>
                         <td>Rs. {{ '%.0f'|format(ed.basic) }}</td>
                         <td>
-                            <div style="font-size:10px;color:#555;">
+                            <div style="font-size:10px;color:var(--muted);">
                                 {% for name, val in ed.allowances_breakdown.items() %}
                                 <div>{{ name }}: Rs.{{ '%.0f'|format(val) }}</div>
                                 {% endfor %}
@@ -85,10 +85,10 @@
                             <input name="allowances_{{ ed.user_id }}" class="form-control" style="width:100px;margin-top:2px;" placeholder="Override total" step="0.01">
                         </td>
                         <td><input name="bonus_{{ ed.user_id }}" class="form-control" style="width:80px;" placeholder="0" step="0.01"></td>
-                        <td><span style="font-size:12px;font-weight:600;color:#c62828;">Rs. {{ '%.0f'|format(ed.pf_employee) }}</span></td>
+                        <td><span style="font-size:12px;font-weight:600;color:var(--red);">Rs. {{ '%.0f'|format(ed.pf_employee) }}</span></td>
                         <td>
                             <input name="tax_{{ ed.user_id }}" class="form-control" style="width:80px;" placeholder="{{ '%.0f'|format(ed.monthly_tax) }}" step="0.01">
-                            <div style="font-size:10px;color:#888;">Auto: Rs.{{ '%.0f'|format(ed.monthly_tax) }}</div>
+                            <div style="font-size:10px;color:var(--muted);">Auto: Rs.{{ '%.0f'|format(ed.monthly_tax) }}</div>
                         </td>
                         <td>
                             {% if ed.active_loans %}
@@ -96,20 +96,20 @@
                             <input name="loan_{{ loan.id }}" class="form-control" style="width:70px;margin-bottom:2px;" placeholder="{{ '%.0f'|format(loan.monthly_installment or loan.amount/loan.installment_months) }}" step="0.01">
                             {% endfor %}
                             {% else %}
-                            <span style="color:#999;">None</span>
+                            <span style="color:var(--muted);">None</span>
                             {% endif %}
                         </td>
                         <td><input name="custom_{{ ed.user_id }}" class="form-control" style="width:80px;" placeholder="0" step="0.01"></td>
                         <td><strong>Rs. {{ '%.0f'|format(ed.gross) }}</strong></td>
-                        <td><strong style="color:#1b5e20;">Rs. {{ '%.0f'|format(ed.net) }}</strong></td>
+                        <td><strong style="color:var(--green);">Rs. {{ '%.0f'|format(ed.net) }}</strong></td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="11" class="text-center" style="color:#999;">No payroll profiles found</td></tr>
+                    <tr><td colspan="11" class="text-center" style="color:var(--muted);">No payroll profiles found</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-        <div style="padding:8px 12px;font-size:12px;color:#888;display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="padding:8px 12px;font-size:12px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap;">
             <span>Total Employees: <strong id="total-emp">{{ employees|length }}</strong></span>
             <span>Selected: <strong id="selected-count">{{ employees|length }}</strong></span>
             <span>Total Gross: Rs. <strong id="total-gross">{{ '%.0f'|format(employees|sum(attribute='gross')) }}</strong></span>

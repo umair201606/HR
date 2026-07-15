@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Accounting{% endblock %} - Solarkon ERP</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  {% if current_user.is_authenticated %}
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" style="overflow-y:auto;overflow-x:hidden;">
+      <div class="sidebar-header">
+        <div class="brand-icon" style="background:linear-gradient(135deg,#0f5257,#1a7a7a);">A</div>
+        <h2>Solarkon Accounting</h2>
+      </div>
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar" style="background:linear-gradient(135deg,#0f5257,#1a7a7a);">
+          {{ current_user.full_name[:1] }}
+        </div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">{{ current_user.full_name }}</div>
+          <div class="sidebar-user-role">{{ current_user.role_obj.name|title if current_user.role_obj else '' }}</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="{{ url_for('accounting.dashboard') }}" class="nav-item {{ 'active' if request.endpoint == 'accounting.dashboard' else '' }}">
+          <span class="nav-icon">&#9679;</span><span>Dashboard</span>
+        </a>
+        <a href="{{ url_for('accounting.voucher_form') }}" class="nav-item {{ 'active' if request.endpoint == 'accounting.voucher_form' else '' }}">
+          <span class="nav-icon">&#10133;</span><span>Create Voucher</span>
+        </a>
+        <a href="{{ url_for('accounting.voucher_list') }}" class="nav-item {{ 'active' if request.endpoint == 'accounting.voucher_list' else '' }}">
+          <span class="nav-icon">&#128196;</span><span>View Vouchers</span>
+        </a>
+        <a href="{{ url_for('coa.list_accounts') }}" class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('coa.') else '' }}">
+          <span class="nav-icon">&#128202;</span><span>Chart of Accounts (COA)</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer" style="padding:12px 18px;border-top:1px solid rgba(255,255,255,0.06);">
+        <a href="{{ url_for('dashboard.hub') }}" class="nav-item" style="color:rgba(255,255,255,0.5);">
+          <span class="nav-icon">&#9632;</span><span>ERP Hub</span>
+        </a>
+        <a href="{{ url_for('auth.logout') }}" class="nav-item" style="color:rgba(255,255,255,0.5);">
+          <span class="nav-icon">&#9654;</span><span>Logout</span>
+        </a>
+      </div>
+    </aside>
+    <main class="main-content">
+      <header class="topbar">
+        <button class="sidebar-toggle" id="sidebar-toggle">&#9776;</button>
+        <h2 class="page-title" style="font-size:16px;font-weight:600;flex:1;margin:0 16px;">{% block page_title %}Dashboard{% endblock %}</h2>
+        <div class="topbar-right">
+          <span style="font-size:11px;background:#e0f2f1;color:#0f5257;padding:2px 8px;border-radius:4px;font-weight:600;">ACCOUNTING</span>
+          <div class="user-menu">
+            <div class="avatar" style="background:linear-gradient(135deg,#0f5257,#1a7a7a);">
+              {{ current_user.full_name[:1] }}
+            </div>
+            <span class="user-name">{{ current_user.full_name }}</span>
+            <span class="user-role">{{ current_user.role_obj.name|title if current_user.role_obj else '' }}</span>
+            <a href="{{ url_for('auth.logout') }}" class="btn-link" style="font-size:13px;color:#6b7280;">Logout</a>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+          <div class="flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.querySelectorAll('.nav-group-header').forEach(function(header) {
+      header.addEventListener('click', function() {
+        var group = this.closest('.nav-group');
+        group.classList.toggle('expanded');
+      });
+    });
+    document.getElementById('sidebar-toggle')?.addEventListener('click', function() {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+    });
+  </script>
+  {% block extra_scripts %}{% endblock %}
+  {% else %}
+  <div class="login-layout">
+    {% block login_content %}{% endblock %}
+  </div>
+  {% endif %}
+</body>
+</html>

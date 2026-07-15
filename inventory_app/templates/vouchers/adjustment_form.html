@@ -12,7 +12,7 @@
       <div class="form-group">
         <label>Status</label>
         <select name="status" class="form-control">
-          <option value="draft" {{ 'selected' if voucher and voucher.status=='draft' else '' }}>Draft</option>
+          <option value="unapproved" {{ 'selected' if voucher and voucher.status=='unapproved' else '' }}>Unapproved</option>
           <option value="approved" {{ 'selected' if voucher and voucher.status=='approved' else '' }}>Approved</option>
         </select>
       </div>
@@ -46,9 +46,15 @@
 
   {% if not voucher or voucher.status != 'approved' %}
   <div class="form-actions">
-    <button type="submit" class="btn btn-primary" onclick="this.form.status.value='draft'">Save as Draft</button>
+    <button type="submit" class="btn btn-primary" onclick="this.form.status.value='unapproved'">Save as Unapproved</button>
     <button type="submit" class="btn btn-success" onclick="this.form.status.value='approved'">Save & Approve</button>
+    {% if voucher %}<a href="{{ url_for('inv_vouchers.voucher_preview', vtype='ADJ', vid=voucher.id) }}" target="_blank" class="btn btn-outline">Print</a>{% endif %}
     <a href="{{ url_for('inv_vouchers.adjustment_list') }}" class="btn btn-outline">Cancel</a>
+  </div>
+  {% elif voucher %}
+  <div class="form-actions">
+    <a href="{{ url_for('inv_vouchers.voucher_preview', vtype='ADJ', vid=voucher.id) }}" target="_blank" class="btn btn-outline">Print</a>
+    <a href="{{ url_for('inv_vouchers.adjustment_list') }}" class="btn btn-outline">Back</a>
   </div>
   {% endif %}
 </form>

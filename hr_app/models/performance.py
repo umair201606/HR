@@ -16,7 +16,7 @@ class PerformanceReview(db.Model):
     strengths = db.Column(db.Text)
     improvements = db.Column(db.Text)
     feedback = db.Column(db.Text)
-    status = db.Column(db.String(20), default="draft")
+    status = db.Column(db.String(20), default="unapproved")
     completed_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

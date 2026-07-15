@@ -28,7 +28,7 @@
                     <td>Rs. {{ c.employer_amount|round|int }}</td>
                     <td><strong>Rs. {{ c.total_amount|round|int }}</strong></td>
                 </tr>
-                {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No contributions yet</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="5" class="text-center" style="color:var(--muted);">No contributions yet</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
@@ -51,7 +51,7 @@
                         </form>
                     </td>
                 </tr>
-                {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No pending withdrawals</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="4" class="text-center" style="color:var(--muted);">No pending withdrawals</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
@@ -76,7 +76,7 @@
                         </form>
                     </td>
                 </tr>
-                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No pending loans</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No pending loans</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

@@ -34,7 +34,7 @@
                         <td>{{ p.components.count() }}</td>
                         <td><a href="{{ url_for('compensation.edit_profile', uid=p.user_id) }}" class="btn btn-sm btn-outline">Edit</a></td>
                     </tr>
-                    {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No profiles</td></tr>{% endfor %}
+                    {% else %}<tr><td colspan="5" class="text-center" style="color:var(--muted);">No profiles</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>
@@ -82,7 +82,7 @@
                         <td>{{ s.rate_pct }}%</td>
                         <td>Rs. {{ s.fixed_amount|round|int }}</td>
                     </tr>
-                    {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No slabs configured</td></tr>{% endfor %}
+                    {% else %}<tr><td colspan="4" class="text-center" style="color:var(--muted);">No slabs configured</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>
@@ -97,7 +97,7 @@
         <tr><td style="font-weight:600;">Effective From</td><td>{{ profile.effective_from }}</td></tr>
     </table>
     {% else %}
-    <p style="color:#999;">No payroll profile configured.</p>
+    <p style="color:var(--muted);">No payroll profile configured.</p>
     {% endif %}
 </div>
 
@@ -118,7 +118,7 @@
                         <a href="{{ url_for('compensation.download_slip_pdf', sid=s.id) }}" class="btn btn-sm btn-primary">PDF</a>
                     </td>
                 </tr>
-                {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No salary slips</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="5" class="text-center" style="color:var(--muted);">No salary slips</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

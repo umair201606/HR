@@ -11,7 +11,9 @@ def hub():
     has_hr = current_user.has_hr_access or is_admin
     has_inv = current_user.has_inventory_access or is_admin
     has_finance = is_admin
-    if not has_hr and not has_inv and not has_finance:
+    has_accounting = is_admin
+    if not has_hr and not has_inv and not has_finance and not has_accounting:
         return render_template("dashboard/access_denied.html")
     return render_template("dashboard/hub.html",
-                           has_hr=has_hr, has_inv=has_inv, has_finance=has_finance)
+                           has_hr=has_hr, has_inv=has_inv,
+                           has_finance=has_finance, has_accounting=has_accounting)

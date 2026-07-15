@@ -487,7 +487,7 @@ print(f"  Created {att_count} attendance records (total: {actual})")
     db.session.commit()
 
     # Payroll runs for May, June, July
-    for m, y, st in [(5, 2026, 'completed'), (6, 2026, 'completed'), (7, 2026, 'draft')]:
+    for m, y, st in [(5, 2026, 'completed'), (6, 2026, 'completed'), (7, 2026, 'unapproved')]:
         pr = PayrollRun.query.filter_by(month=m, year=y).first()
         if pr:
             continue

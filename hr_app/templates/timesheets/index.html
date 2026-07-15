@@ -8,7 +8,7 @@
     </div>
     <div>
         <span class="badge badge-{{ 'success' if week.status == 'approved' else 'warning' if week.status == 'submitted' else 'info' }}">{{ week.status }}</span>
-        {% if week.status == 'draft' %}
+        {% if week.status == 'unapproved' %}
         <form method="POST" action="{{ url_for('timesheet.submit', wid=week.id) }}" style="display:inline;">
             <button class="btn btn-primary btn-sm">Submit for Approval</button>
         </form>
@@ -22,7 +22,7 @@
 
 <div class="card mb-20">
     <div class="card-header">Weekly Grid</div>
-    <form id="entry-form" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:12px;background:#f8f9fa;border-radius:6px;">
+    <form id="entry-form" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:12px;background:var(--paper);border-radius:3px;border:1px solid var(--line);">
         <input type="hidden" name="week_id" value="{{ week.id }}">
         <input type="hidden" name="day" id="entry-day" value="{{ days[0].date if days else '' }}">
         <select id="entry-day-select" class="form-control" style="width:auto;">
@@ -43,10 +43,10 @@
             {% for e in d.entries %}
             <div class="ts-entry">
                 {{ e.task }} ({{ e.hours }}h)
-                <button class="btn-link del-entry" data-id="{{ e.id }}" style="color:#c62828;font-size:10px;">&times;</button>
+                <button class="btn-link del-entry" data-id="{{ e.id }}" style="color:var(--red);font-size:10px;">&times;</button>
             </div>
             {% endfor %}
-            <div style="font-size:11px;font-weight:600;color:#1a237e;margin-top:4px;">Total: {{ d.total }}h</div>
+            <div style="font-size:11px;font-weight:600;color:var(--ledger);margin-top:4px;">Total: {{ d.total }}h</div>
         </div>
         {% endfor %}
     </div>

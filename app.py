@@ -131,48 +131,87 @@ def _seed_all_data(app):
                     db.session.add(Permission(role_id=role.id, resource=resource,
                                               can_read=bool(cr), can_write=bool(cw), can_delete=bool(cd)))
 
-        for prefix in ["PI", "PR", "CONS", "SCRAP", "ADJ", "ST"]:
+        for prefix in ["PI", "PR", "CONS", "SCRAP", "ADJ", "ST", "CPV", "CRV", "BPV", "BRV", "JV", "PRL"]:
             if not VoucherNumber.query.filter_by(prefix=prefix).first():
                 db.session.add(VoucherNumber(prefix=prefix, next_number=1))
 
-        if ChartOfAccount.query.count() == 0:
-            for code, name, type_ in [
-                ("1000", "Cash & Bank", "asset"), ("1100", "Accounts Receivable", "asset"),
-                ("1200", "Inventory", "asset"), ("1300", "Fixed Assets", "asset"),
-                ("2000", "Accounts Payable", "liability"), ("2100", "Accrued Expenses", "liability"),
-                ("2200", "Loans Payable", "liability"), ("3000", "Owner's Equity", "equity"),
-                ("3100", "Retained Earnings", "equity"), ("4000", "Sales Revenue", "revenue"),
-                ("4100", "Service Income", "revenue"), ("5000", "Cost of Goods Sold", "expense"),
-                ("5100", "Salaries & Wages", "expense"), ("5200", "Rent & Utilities", "expense"),
-                ("5300", "Office Supplies", "expense"), ("5400", "Transportation", "expense"),
-                ("5500", "Taxes & Licenses", "expense"), ("5600", "Depreciation", "expense"),
-                ("5700", "Consumption Expense", "expense"),
-                ("5800", "Scrap/Write-off", "expense"),
-                ("5900", "Inventory Adjustment", "expense"),
-                ("6000", "Purchase Discounts", "contra-expense"),
-                ("6100", "Commission Expense", "expense"),
-                ("6200", "Freight Expense", "expense"),
-                ("6300", "Loading/Unloading Expense", "expense"),
-                ("6400", "Withholding Tax Payable", "liability"),
-                ("6500", "Sales Tax Payable", "liability"),
-                ("6600", "Purchase Returns", "contra-expense"),
-            ]:
-                db.session.add(ChartOfAccount(code=code, name=name, type=type_))
-        else:
-            for code, name, type_ in [
-                ("5700", "Consumption Expense", "expense"),
-                ("5800", "Scrap/Write-off", "expense"),
-                ("5900", "Inventory Adjustment", "expense"),
-                ("6000", "Purchase Discounts", "contra-expense"),
-                ("6100", "Commission Expense", "expense"),
-                ("6200", "Freight Expense", "expense"),
-                ("6300", "Loading/Unloading Expense", "expense"),
-                ("6400", "Withholding Tax Payable", "liability"),
-                ("6500", "Sales Tax Payable", "liability"),
-                ("6600", "Purchase Returns", "contra-expense"),
-            ]:
-                if not ChartOfAccount.query.filter_by(code=code).first():
-                    db.session.add(ChartOfAccount(code=code, name=name, type=type_))
+        from sqlalchemy import inspect
+        _inspector = inspect(db.engine)
+        _coa_cols = {c["name"] for c in _inspector.get_columns("chart_of_accounts")}
+        if "level" not in _coa_cols:
+            try:
+                db.session.execute(db.text("ALTER TABLE chart_of_accounts ADD COLUMN level INTEGER DEFAULT 4"))
+            except Exception:
+                db.session.rollback()
+        if "is_fixed" not in _coa_cols:
+            try:
+                db.session.execute(db.text("ALTER TABLE chart_of_accounts ADD COLUMN is_fixed BOOLEAN DEFAULT 0"))
+            except Exception:
+                db.session.rollback()
+        _acct_period_cols = {c["name"] for c in _inspector.get_columns("accounting_periods")}
+        if "is_active" not in _acct_period_cols:
+            try:
+                db.session.execute(db.text("ALTER TABLE accounting_periods ADD COLUMN is_active BOOLEAN DEFAULT 1"))
+            except Exception:
+                db.session.rollback()
+
+        def _add_acct(code, name, type_, parent_id=None, level=4, fixed=False):
+            if not ChartOfAccount.query.filter_by(code=str(code)).first():
+                db.session.add(ChartOfAccount(
+                    code=str(code), name=name, type=type_,
+                    parent_id=parent_id, level=level, is_fixed=fixed))
+            return ChartOfAccount.query.filter_by(code=str(code)).first()
+
+        def _seed_4level_coa():
+            if ChartOfAccount.query.count() > 0:
+                return
+            # Level 1
+            l1 = {}
+            for code, name, type_ in [("1", "Assets", "asset"), ("2", "Liabilities", "liability"),
+                                       ("3", "Equity", "equity"), ("4", "Revenue", "revenue"),
+                                       ("5", "Expense", "expense")]:
+                l1[name] = _add_acct(code, name, type_, level=1, fixed=True)
+            # Level 2
+            l2 = {}
+            l2["Current Assets"] = _add_acct("11", "Current Assets", "asset", l1["Assets"].id, 2, True)
+            l2["Non-Current Assets"] = _add_acct("12", "Non-Current Assets", "asset", l1["Assets"].id, 2, True)
+            l2["Current Liabilities"] = _add_acct("21", "Current Liabilities", "liability", l1["Liabilities"].id, 2, True)
+            l2["Non-Current Liabilities"] = _add_acct("22", "Non-Current Liabilities", "liability", l1["Liabilities"].id, 2, True)
+            l2["Equity Reserves"] = _add_acct("31", "Equity Reserves", "equity", l1["Equity"].id, 2)
+            l2["Operating Revenue"] = _add_acct("41", "Operating Revenue", "revenue", l1["Revenue"].id, 2)
+            l2["Operating Expenses"] = _add_acct("51", "Operating Expenses", "expense", l1["Expense"].id, 2)
+            # Level 3
+            l3 = {}
+            l3["Cash & Bank"] = _add_acct("111", "Cash & Bank", "asset", l2["Current Assets"].id, 3, True)
+            l3["Trade Debtors"] = _add_acct("112", "Trade Debtors", "asset", l2["Current Assets"].id, 3, True)
+            l3["Trading Goods Stock"] = _add_acct("113", "Trading Goods Stock", "asset", l2["Current Assets"].id, 3, True)
+            l3["Fixed Assets"] = _add_acct("121", "Fixed Assets", "asset", l2["Non-Current Assets"].id, 3, True)
+            l3["Trade Creditors"] = _add_acct("211", "Trade Creditors", "liability", l2["Current Liabilities"].id, 3, True)
+            l3["Accrued Expenses"] = _add_acct("212", "Accrued Expenses", "liability", l2["Current Liabilities"].id, 3)
+            l3["Long-term Loans"] = _add_acct("221", "Long-term Loans", "liability", l2["Non-Current Liabilities"].id, 3, True)
+            l3["Sales Revenue"] = _add_acct("411", "Sales Revenue", "revenue", l2["Operating Revenue"].id, 3)
+            l3["Service Income"] = _add_acct("412", "Service Income", "revenue", l2["Operating Revenue"].id, 3)
+            l3["Cost of Goods Sold"] = _add_acct("511", "Cost of Goods Sold", "expense", l2["Operating Expenses"].id, 3)
+            l3["Salaries & Wages"] = _add_acct("512", "Salaries & Wages", "expense", l2["Operating Expenses"].id, 3)
+            l3["Rent & Utilities"] = _add_acct("513", "Rent & Utilities", "expense", l2["Operating Expenses"].id, 3)
+            l3["Office Supplies"] = _add_acct("514", "Office Supplies", "expense", l2["Operating Expenses"].id, 3)
+            l3["Transportation"] = _add_acct("515", "Transportation", "expense", l2["Operating Expenses"].id, 3)
+            l3["Taxes & Licenses"] = _add_acct("516", "Taxes & Licenses", "expense", l2["Operating Expenses"].id, 3)
+            l3["Depreciation"] = _add_acct("517", "Depreciation", "expense", l2["Operating Expenses"].id, 3)
+            l3["Other Expenses"] = _add_acct("519", "Other Expenses", "expense", l2["Operating Expenses"].id, 3)
+            # Level 4 fixed
+            _add_acct("3111", "Capital Account", "equity", l2["Equity Reserves"].id, 4, True)
+            _add_acct("3112", "Retained Earnings", "equity", l2["Equity Reserves"].id, 4, True)
+            _add_acct("1111", "Suspense Account", "asset", l3["Cash & Bank"].id, 4, True)
+            # Payroll accounts (created by get_or_create_account at runtime, seeded here for visibility)
+            _add_acct("5121", "Salary Expense", "expense", l3["Salaries & Wages"].id, 4)
+            _add_acct("5122", "PF Employer Expense", "expense", l3["Salaries & Wages"].id, 4)
+            _add_acct("2121", "Salary Payable", "liability", l3["Accrued Expenses"].id, 4)
+            _add_acct("2122", "Income Tax Payable", "liability", l3["Accrued Expenses"].id, 4)
+            _add_acct("2123", "PF Payable", "liability", l3["Accrued Expenses"].id, 4)
+            _add_acct("2124", "Loan Deductions Clearing", "liability", l3["Accrued Expenses"].id, 4)
+
+        _seed_4level_coa()
 
         # Migration: add missing columns
         from sqlalchemy import inspect
@@ -195,6 +234,45 @@ def _seed_all_data(app):
                         db.session.execute(db.text(f"ALTER TABLE {tbl} ADD COLUMN {col} VARCHAR(200) DEFAULT ''"))
                     except Exception:
                         db.session.rollback()
+        # Migration: add typed columns to inv_invoices and inv_invoice_items
+        inv_cols = {c["name"] for c in inspector.get_columns("inv_invoices")}
+        inv_item_cols = {c["name"] for c in inspector.get_columns("inv_invoice_items")}
+        new_inv_cols = {
+            "voucher_number": "VARCHAR(50) DEFAULT ''",
+            "voucher_status": "VARCHAR(20) DEFAULT 'unapproved'",
+            "payment_status": "VARCHAR(20) DEFAULT 'unpaid'",
+            "charges_mode": "VARCHAR(20) DEFAULT 'general'",
+            "total_charges": "FLOAT DEFAULT 0",
+            "global_delivery": "FLOAT DEFAULT 0",
+            "global_installation": "FLOAT DEFAULT 0",
+            "approved_by": "INTEGER",
+            "approved_at": "DATETIME",
+        }
+        for col, dtype in new_inv_cols.items():
+            if col not in inv_cols:
+                try:
+                    db.session.execute(db.text(f"ALTER TABLE inv_invoices ADD COLUMN {col} {dtype}"))
+                except Exception:
+                    db.session.rollback()
+        if "voucher_number" not in inv_cols:
+            try:
+                db.session.execute(db.text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_inv_invoices_voucher_number ON inv_invoices(voucher_number)"
+                ))
+            except Exception:
+                db.session.rollback()
+
+        new_item_cols = {
+            "delivery": "FLOAT DEFAULT 0",
+            "installation": "FLOAT DEFAULT 0",
+        }
+        for col, dtype in new_item_cols.items():
+            if col not in inv_item_cols:
+                try:
+                    db.session.execute(db.text(f"ALTER TABLE inv_invoice_items ADD COLUMN {col} {dtype}"))
+                except Exception:
+                    db.session.rollback()
+
         db.session.commit()
 
         for u in User.query.all():

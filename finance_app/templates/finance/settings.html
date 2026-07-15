@@ -115,9 +115,6 @@
     <div class="card">
       <div class="flex items-center justify-between mb-4">
         <h2 class="font-bold text-lg flex items-center gap-2"><i class="fas fa-calendar-alt text-purple-600"></i> Financial Periods</h2>
-        <form method="POST" action="{{ url_for('finance_settings.seed_periods') }}" class="inline">
-          <button type="submit" class="btn btn-outline btn-sm"><i class="fas fa-magic"></i> Seed Current FY</button>
-        </form>
       </div>
       <div class="overflow-x-auto">
         <table class="report-table">
@@ -153,24 +150,22 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="text-center text-slate-400 py-4">No periods defined. Click "Seed Current FY" to auto-generate.</td></tr>
+            <tr><td colspan="6" class="text-center text-slate-400 py-4">No periods defined. Add one below.</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
-      <details class="mt-6 no-print">
-        <summary class="text-sm font-medium text-blue-600 cursor-pointer"><i class="fas fa-plus-circle"></i> Add Custom Period</summary>
-        <form method="POST" action="{{ url_for('finance_settings.add_period') }}" class="mt-3 grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div class="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200 no-print">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3"><i class="fas fa-plus-circle text-blue-600"></i> New Period</h3>
+        <form method="POST" action="{{ url_for('finance_settings.add_period') }}" class="grid grid-cols-1 md:grid-cols-5 gap-3">
           <input type="text" name="fiscal_year" placeholder="Fiscal Year (e.g. 2025-2026)" required class="w-full">
-          <input type="text" name="period_name" placeholder="Period Name (e.g. Jan 2026)" required class="w-full">
-          <input type="date" name="start_date" required class="w-full">
-          <div class="flex gap-2">
-            <input type="date" name="end_date" required class="w-full">
-            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Add</button>
-          </div>
+          <input type="text" name="period_name" placeholder="Period Name" required class="w-full">
+          <input type="date" name="start_date" title="Start Date" required class="w-full">
+          <input type="date" name="end_date" title="End Date" required class="w-full">
+          <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Add Period</button>
         </form>
-      </details>
+      </div>
     </div>
 
     {% elif tab == 'rights' %}

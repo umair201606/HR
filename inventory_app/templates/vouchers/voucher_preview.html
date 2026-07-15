@@ -19,7 +19,7 @@
   td { padding: 10px 12px; border-bottom: 1px solid #eef0f5; }
   tfoot td { font-weight: 600; background: #f8f9ff; }
   .status-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
-  .status-new,.status-draft { background: #fef3c7; color: #d97706; }
+  .status-new,.status-unapproved { background: #fef3c7; color: #d97706; }
   .status-approved { background: #dcfce7; color: #16a34a; }
   .status-in_progress { background: #dbeafe; color: #2563eb; }
   .status-paid { background: #dcfce7; color: #16a34a; }
@@ -28,7 +28,17 @@
   .btn-print { padding: 10px 32px; background: #6c63ff; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
   .btn-print:hover { background: #5a52d5; }
   .btn-close { padding: 10px 32px; background: #fff; color: #6b7280; border: 1px solid #d0d5dd; border-radius: 8px; font-size: 15px; cursor: pointer; margin-left: 8px; text-decoration: none; display: inline-block; }
-  @media print { body { background: #fff; padding: 0; } .print-area { box-shadow: none; border-radius: 0; padding: 20px; } .actions { display: none; } }
+  @media print {
+    body { background: #fff; padding: 0; font-size: 11px; }
+    .print-area { box-shadow: none; border-radius: 0; padding: 14px 18px; max-width: none; margin: 0; }
+    .voucher-header { margin-bottom: 12px; padding-bottom: 8px; }
+    .voucher-header h1 { font-size: 16px; }
+    .voucher-header .voucher-no { font-size: 13px; }
+    .voucher-meta { font-size: 11px; margin-bottom: 10px; }
+    table { font-size: 10px; margin: 8px 0; }
+    th, td { padding: 4px 6px; }
+    .actions { display: none; }
+  }
 </style>
 </head>
 <body>

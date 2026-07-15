@@ -68,7 +68,8 @@
     <a href="{{ url_for('finance_settings.index') }}" class="{% if request.endpoint and request.endpoint.startswith('finance_settings') %}active{% endif %}">
       <i class="fas fa-cog"></i> Settings
     </a>
-    <a href="{{ url_for('inv_dashboard.dashboard') }}"><i class="fas fa-arrow-left"></i> Back to Inventory</a>
+    <a href="{{ url_for('inv_auth.dashboard') }}"><i class="fas fa-arrow-left"></i> Back to Inventory</a>
+    <a href="{{ url_for('dashboard.hub') }}"><i class="fas fa-th"></i> ERP Hub</a>
   </nav>
 
   <main class="finance-main">

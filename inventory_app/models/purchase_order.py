@@ -9,7 +9,7 @@ class InvPurchaseOrder(db.Model):
     supplier_id = db.Column(db.Integer, db.ForeignKey("inv_suppliers.id"), nullable=False)
     order_date = db.Column(db.Date, default=datetime.utcnow)
     expected_date = db.Column(db.Date)
-    status = db.Column(db.String(20), default="draft")
+    status = db.Column(db.String(20), default="unapproved")
     total_amount = db.Column(db.Float, default=0)
     notes = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))

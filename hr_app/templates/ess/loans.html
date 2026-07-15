@@ -36,7 +36,7 @@
                     <td><span class="badge badge-{{ 'success' if l.status == 'approved' else 'warning' if l.status == 'pending' else 'danger' }}">{{ l.status }}</span></td>
                     <td>{{ l.created_at.strftime('%d-%b-%Y') }}</td>
                 </tr>
-                {% else %}<tr><td colspan="7" class="text-center" style="color:#999;">No requests</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="7" class="text-center" style="color:var(--muted);">No requests</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

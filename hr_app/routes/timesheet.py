@@ -127,7 +127,7 @@ def review(aid):
             flash("Please provide a reason for rejection.", "danger")
             return redirect(url_for("timesheet.approvals"))
         approval.status = "rejected"
-        approval.week.status = "draft"
+        approval.week.status = "unapproved"
     approval.comment = comment
     db.session.commit()
     flash(f"Timesheet {action}d.", "success")

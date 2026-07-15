@@ -27,7 +27,6 @@ def register_inventory_blueprints(app):
     from .routes.invoices import inv_inv_bp
     from .routes.purchase_invoice import inv_pinv_bp
     from .routes.purchase_return import inv_preturn_bp
-    from .routes.chart_of_accounts import inv_coa_bp
     from .routes.vouchers import inv_vouchers_bp
     from .routes.reports import inv_reports_bp
     from .routes.settings import inv_settings_bp
@@ -43,7 +42,6 @@ def register_inventory_blueprints(app):
     app.register_blueprint(inv_inv_bp)
     app.register_blueprint(inv_pinv_bp)
     app.register_blueprint(inv_preturn_bp)
-    app.register_blueprint(inv_coa_bp)
     app.register_blueprint(inv_vouchers_bp)
     app.register_blueprint(inv_reports_bp)
     app.register_blueprint(inv_settings_bp)

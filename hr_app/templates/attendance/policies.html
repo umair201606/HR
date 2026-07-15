@@ -41,7 +41,7 @@
                     <td>{{ p.max_regular_hours }}/{{ p.max_overtime_hours }}h</td>
                     <td>{{ p.min_break_minutes }}min{{ ' (req)' if p.require_break else '' }}</td>
                 </tr>
-                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No policies</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No policies</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

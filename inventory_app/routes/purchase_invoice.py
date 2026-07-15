@@ -176,8 +176,8 @@ def save_invoice():
                 ))
 
     if action == "approve":
-        inv_acc = ChartOfAccount.query.filter_by(code="1200").first()
-        ap_acc = ChartOfAccount.query.filter_by(code="2000").first()
+        inv_acc = ChartOfAccount.query.filter_by(code="113").first()
+        ap_acc = ChartOfAccount.query.filter_by(code="211").first()
         if inv_acc and ap_acc:
             post_journal_entry(
                 voucher_type="PI",

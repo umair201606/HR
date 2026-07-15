@@ -21,15 +21,15 @@
     <div class="stat-card" style="text-align:center;">
         <div class="stat-label">Today</div>
         {% if today_att and today_att.clock_in and not today_att.clock_out %}
-        <div class="stat-value" style="font-size:16px;color:#1b5e20;">
+        <div class="stat-value" style="font-size:16px;color:var(--green);">
             {{ 'On Break' if active_break else 'Clocked In' }}
         </div>
         <div class="stat-sub">{{ today_att.clock_in.strftime('%H:%M') }}</div>
         {% elif today_att and today_att.clock_out %}
-        <div class="stat-value" style="font-size:16px;color:#888;">Done</div>
+        <div class="stat-value" style="font-size:16px;color:var(--muted);">Done</div>
         <div class="stat-sub">{{ today_att.clock_in.strftime('%H:%M') }} - {{ today_att.clock_out.strftime('%H:%M') }}</div>
         {% else %}
-        <div class="stat-value" style="font-size:16px;color:#c62828;">Not Clocked</div>
+        <div class="stat-value" style="font-size:16px;color:var(--red);">Not Clocked</div>
         {% endif %}
     </div>
 </div>
@@ -47,7 +47,7 @@
         <button class="btn btn-danger" id="clock-out-btn" style="font-size:18px;padding:16px 40px;">&#9724; Clock Out</button>
     </div>
     {% else %}
-    <p style="font-size:16px;color:#888;">Shift completed for today.</p>
+    <p style="font-size:16px;color:var(--muted);">Shift completed for today.</p>
     {% endif %}
     <div id="clock-status" style="margin-top:10px;font-size:14px;font-weight:600;"></div>
 </div>
@@ -67,7 +67,7 @@
                     <td>{% if r.is_late %}&#10060;{% else %}&#10004;{% endif %}</td>
                     <td>{% if r.is_half_day %}&#10060;{% else %}&#10004;{% endif %}</td>
                 </tr>
-                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No records</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No records</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

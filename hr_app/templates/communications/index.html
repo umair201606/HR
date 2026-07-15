@@ -9,11 +9,11 @@
     {% for r in notifications %}
     <div class="notif-row" style="padding:10px;border-bottom:1px solid #eee;{% if not r.is_read %}background:#e3f2fd;{% endif %}">
         <div style="font-weight:600;">{{ r.notification.title }}</div>
-        <div style="font-size:13px;color:#555;">{{ r.notification.message }}</div>
-        <div style="font-size:11px;color:#999;">{{ r.notification.created_at.strftime('%d-%b-%Y %H:%M') }}</div>
+        <div style="font-size:13px;color:var(--ink);">{{ r.notification.message }}</div>
+        <div style="font-size:11px;color:var(--muted);">{{ r.notification.created_at.strftime('%d-%b-%Y %H:%M') }}</div>
     </div>
     {% else %}
-    <p style="padding:20px;color:#999;text-align:center;">No notifications</p>
+    <p style="padding:20px;color:var(--muted);text-align:center;">No notifications</p>
     {% endfor %}
 </div>
 {% endblock %}

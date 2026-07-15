@@ -33,7 +33,7 @@
 
     <div class="card">
         <div class="card-header">Recent Activity</div>
-        <div style="font-size:13px;color:#666;">
+        <div style="font-size:13px;color:var(--muted);">
             {% if current_user.is_admin() or current_user.is_manager() %}
             <p>Manage your team, approve leaves, and review timesheets from the sidebar.</p>
             {% else %}
@@ -45,7 +45,7 @@
 
 {% if current_user.is_admin() or current_user.is_manager() %}
 {% if not chart_data %}
-<div class="card mt-20"><div class="card-header">Attendance Trend</div><div style="padding:30px;text-align:center;color:#888;">No attendance data for this year.</div></div>
+<div class="card mt-20"><div class="card-header">Attendance Trend</div><div style="padding:30px;text-align:center;color:var(--muted);">No attendance data for this year.</div></div>
 {% else %}
 {% set W = 600 %}{% set H = 220 %}{% set pt = 24 %}{% set pr = 16 %}{% set pb = 28 %}{% set pl = 40 %}
 {% set cw = W - pl - pr %}{% set ch = H - pt - pb %}{% set max_pct = 100 %}
@@ -60,13 +60,13 @@
 {% endfor %}
 {% set area_d.d = area_d.d ~ " L" ~ (pl + (chart_data|length - 1) * x_step) ~ "," ~ (pt + ch) ~ " L" ~ pl ~ "," ~ (pt + ch) ~ " Z" %}
 <div class="card mt-20">
-    <div class="card-header">Weekly Attendance Trend <span style="font-weight:400;font-size:12px;color:#888;">&bull; {{ chart_data|length }} weeks</span></div>
+    <div class="card-header">Weekly Attendance Trend <span style="font-weight:400;font-size:12px;color:var(--muted);">&bull; {{ chart_data|length }} weeks</span></div>
     <div style="width:100%;height:220px;">
         <svg width="100%" height="220" viewBox="0 0 {{ W }} 220" style="display:block;">
             <defs>
                 <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#3b82f6"/>
-                    <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+                    <stop offset="0%" stop-color="#0f5257"/>
+                    <stop offset="100%" stop-color="#0f5257" stop-opacity="0"/>
                 </linearGradient>
             </defs>
             {% for i in range(5) %}
@@ -76,12 +76,12 @@
             {% endfor %}
             {% if chart_data|length > 1 %}
             <path d="{{ area_d.d }}" fill="url(#chartGrad)" opacity="0.15"/>
-            <path d="{{ line_d.d }}" stroke="#3b82f6" stroke-width="2.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+            <path d="{{ line_d.d }}" stroke="#0f5257" stroke-width="2.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
             {% endif %}
             {% for d in chart_data %}
             {% set x = pl + (loop.index0 * x_step) %}
             {% set y = (pt + ch - (d.pct / max_pct * ch)) | round %}
-            <circle cx="{{ x }}" cy="{{ y }}" r="5" fill="#3b82f6" stroke="#fff" stroke-width="2.5">
+            <circle cx="{{ x }}" cy="{{ y }}" r="5" fill="#0f5257" stroke="#fff" stroke-width="2.5">
                 <title>Week of {{ d.label }}: {{ d.pct }}% ({{ d.total }} records)&#10;{{ d.late }} late, {{ d.half }} half-day</title>
             </circle>
             <text x="{{ x }}" y="{{ y - 14 }}" text-anchor="middle" font-size="12" font-weight="700" fill="#1e293b" stroke="#fff" stroke-width="4" paint-order="stroke">{{ '%g' % d.pct }}%</text>

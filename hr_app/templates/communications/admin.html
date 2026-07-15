@@ -61,7 +61,7 @@
                     <td>{{ n.created_at.strftime('%d-%b-%Y %H:%M') }}</td>
                     <td>{{ n.recipients.count() }}</td>
                 </tr>
-                {% else %}<tr><td colspan="5" class="text-center" style="color:#999;">No notifications sent</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="5" class="text-center" style="color:var(--muted);">No notifications sent</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
@@ -80,7 +80,7 @@
                     <td><span class="badge badge-{{ 'success' if e.status == 'sent' else 'danger' }}">{{ e.status }}</span></td>
                     <td>{{ e.sent_at.strftime('%d-%b-%Y %H:%M') }}</td>
                 </tr>
-                {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No emails logged</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="4" class="text-center" style="color:var(--muted);">No emails logged</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

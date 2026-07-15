@@ -1,5 +1,4 @@
-from datetime import datetime, date, timedelta
-from dateutil.relativedelta import relativedelta
+from datetime import datetime, date
 from shared.extensions import db
 
 
@@ -44,6 +43,7 @@ class AccountingPeriod(db.Model):
     end_date = db.Column(db.Date, nullable=False)
     is_open = db.Column(db.Boolean, default=True)
     is_closed = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     closed_at = db.Column(db.DateTime)
 
@@ -51,23 +51,15 @@ class AccountingPeriod(db.Model):
     def seed_current_year(cls):
         today = date.today()
         year = today.year
-        fy = f"{year}-{year+1}" if today.month >= 7 else f"{year-1}-{year}"
+        fy = str(year)
         existing = cls.query.filter_by(fiscal_year=fy).count()
         if existing > 0:
             return
-        start_m = 7
-        start_y = year if today.month >= 7 else year - 1
-        period_start = date(start_y, start_m, 1)
-        for i in range(12):
-            ps = period_start + relativedelta(months=i)
-            pe = (ps + relativedelta(months=1)) - timedelta(days=1)
-            month_names = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-                           "Jan", "Feb", "Mar", "Apr", "May", "Jun"]
-            db.session.add(cls(
-                fiscal_year=fy,
-                period_name=f"{month_names[i]} {ps.year}",
-                start_date=ps,
-                end_date=pe,
-                is_open=True,
-            ))
+        db.session.add(cls(
+            fiscal_year=fy,
+            period_name=f"FY {fy}",
+            start_date=date(year, 1, 1),
+            end_date=date(year, 12, 31),
+            is_open=True,
+        ))
         db.session.commit()

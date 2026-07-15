@@ -14,6 +14,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from shared.extensions import db
 from shared.models.ledger import ChartOfAccount, JournalEntry, JournalLine
 from shared.models.base import User
+from shared.models.company_settings import AccountingPeriod
 
 finance_bp = Blueprint("finance", __name__, url_prefix="/finance")
 
@@ -40,10 +41,44 @@ def _parse_date(d):
         return None
     if isinstance(d, date):
         return d
-    try:
-        return datetime.strptime(d, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(d, fmt).date()
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
+def _resolve_period():
+    filter_mode = request.args.get("filter_mode", "period")
+    period_id = request.args.get("period_id", type=int)
+    from_str = request.args.get("from", "").strip()
+    to_str = request.args.get("to", "").strip()
+    from_date = _parse_date(from_str) if from_str else None
+    to_date = _parse_date(to_str) if to_str else None
+
+    periods = AccountingPeriod.query.order_by(AccountingPeriod.start_date.desc()).all()
+    selected_period_id = period_id
+
+    if filter_mode == "period" and period_id:
+        period = AccountingPeriod.query.get(period_id)
+        if period:
+            from_date = period.start_date
+            to_date = period.end_date
+
+    if not from_date and not to_date:
+        active = AccountingPeriod.query.filter_by(is_active=True).first()
+        if active:
+            from_date = active.start_date
+            to_date = active.end_date
+            if not selected_period_id:
+                selected_period_id = active.id
+    elif not selected_period_id and filter_mode == "period":
+        active = AccountingPeriod.query.filter_by(is_active=True).first()
+        if active:
+            selected_period_id = active.id
+
+    return from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str
 
 
 def _get_account_balance(account_id, as_of=None):
@@ -180,22 +215,33 @@ def dashboard():
 # 2. GENERAL LEDGER
 # ═══════════════════════════════════════════════
 
-@finance_bp.route("/ledger")
-@login_required
-def ledger():
-    accounts = ChartOfAccount.query.filter_by(is_active=True).order_by(ChartOfAccount.code).all()
-    account_id = request.args.get("account_id", type=int)
-    from_date = _parse_date(request.args.get("from"))
-    to_date = _parse_date(request.args.get("to"))
+def _get_descendant_ids(account_id):
+    ids = [account_id]
+    for child in ChartOfAccount.query.filter_by(parent_id=account_id, is_active=True).all():
+        ids.extend(_get_descendant_ids(child.id))
+    return ids
 
-    rows = []
-    account = None
-    balance = Decimal("0")
 
-    if account_id:
-        account = ChartOfAccount.query.get(account_id)
+def _get_leaf_descendant_ids(account_id):
+    """Get only leaf (no-children) descendant IDs, excluding the head itself."""
+    leaf_ids = []
+    for child in ChartOfAccount.query.filter_by(parent_id=account_id, is_active=True).all():
+        grand_children = ChartOfAccount.query.filter_by(parent_id=child.id, is_active=True).count()
+        if grand_children == 0:
+            leaf_ids.append(child.id)
+        else:
+            leaf_ids.extend(_get_leaf_descendant_ids(child.id))
+    return list(set(leaf_ids))
+
+
+def _get_ledger_sections(account_ids, from_date, to_date):
+    sections = []
+    for aid in account_ids:
+        account = ChartOfAccount.query.get(aid)
+        if not account:
+            continue
         q = JournalLine.query.join(JournalEntry).filter(
-            JournalLine.account_id == account_id,
+            JournalLine.account_id == aid,
             JournalEntry.is_posted == True,
         )
         if from_date:
@@ -204,7 +250,8 @@ def ledger():
             q = q.filter(JournalEntry.entry_date <= to_date)
         q = q.order_by(JournalEntry.entry_date, JournalEntry.id)
         lines = q.all()
-
+        rows = []
+        balance = Decimal("0")
         for line in lines:
             dr = Decimal(str(line.debit))
             cr = Decimal(str(line.credit))
@@ -217,30 +264,88 @@ def ledger():
                 "credit": float(cr) if cr else 0,
                 "balance": float(balance),
             })
+        sections.append({"account": account, "rows": rows, "subtotal": float(balance)})
+    return sections
+
+
+@finance_bp.route("/ledger")
+@login_required
+def ledger():
+    all_accounts = ChartOfAccount.query.filter_by(is_active=True).order_by(ChartOfAccount.code).all()
+    child_ids = {r[0] for r in db.session.query(ChartOfAccount.parent_id).filter(
+        ChartOfAccount.parent_id.isnot(None)).distinct().all()}
+    heads = [a for a in all_accounts if a.parent_id is not None and a.id in child_ids]
+    leaf_accounts = [a for a in all_accounts if a.id not in child_ids]
+
+    from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
+
+    mode = request.args.get("mode", "all")
+    selection_mode = request.args.get("selection_mode", "custom")
+    account_ids_str = request.args.get("account_ids", "")
+    head_ids_str = request.args.get("head_ids", "")
+
+    resolved_ids = []
+    if mode == "all":
+        resolved_ids = [a.id for a in all_accounts]
+    elif mode == "select":
+        if selection_mode == "custom" and account_ids_str:
+            resolved_ids = [int(x) for x in account_ids_str.split(",") if x.strip().isdigit()]
+        elif selection_mode == "head" and head_ids_str:
+            head_ids = [int(x) for x in head_ids_str.split(",") if x.strip().isdigit()]
+            for hid in head_ids:
+                resolved_ids.extend(_get_leaf_descendant_ids(hid))
+            resolved_ids = list(set(resolved_ids))
+
+    account_sections = _get_ledger_sections(resolved_ids, from_date, to_date) if resolved_ids else []
 
     fmt = request.args.get("format")
-    if fmt == "excel":
+    if fmt and account_sections:
         headers = ["Date", "Voucher #", "Description", "Debit", "Credit", "Balance"]
-        data = [[r["date"], r["voucher"], r["description"], r["debit"], r["credit"], r["balance"]]
-                for r in rows]
-        wb_out = _build_excel_wb(f"GL - {account.name if account else 'Ledger'}",
-                                  headers, data, [14, 18, 40, 16, 16, 16])
-        return send_file(wb_out, as_attachment=True,
-                         download_name=f"gl_{account.code if account else 'ledger'}.xlsx",
-                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    if fmt == "pdf":
-        headers = ["Date", "Voucher #", "Description", "Debit", "Credit", "Balance"]
-        data = [[r["date"], r["voucher"], r["description"], r["debit"], r["credit"], r["balance"]]
-                for r in rows]
-        pdf_out = _build_pdf_landscape(f"General Ledger - {account.name if account else ''}",
-                                        headers, data, [24, 28, 60, 24, 24, 24])
-        return send_file(pdf_out, as_attachment=True,
-                         download_name=f"gl_{account.code if account else 'ledger'}.pdf",
-                         mimetype="application/pdf")
+        if fmt == "excel":
+            wb = openpyxl.Workbook()
+            wb.remove(wb.active)
+            for sec in account_sections:
+                data = [[r["date"], r["voucher"], r["description"], r["debit"], r["credit"], r["balance"]]
+                        for r in sec["rows"]]
+                ws = wb.create_sheet(title=sec["account"].code[:31])
+                ws.merge_cells("A1:F1")
+                ws.cell(row=1, column=1, value=f"{sec['account'].code} - {sec['account'].name}").font = TITLE_FONT
+                for ci, h in enumerate(headers, 1):
+                    c = ws.cell(row=3, column=ci, value=h)
+                    c.font = HEADER_FONT; c.fill = HEADER_FILL; c.alignment = CENTER; c.border = THIN
+                for ri, row in enumerate(data, 4):
+                    for ci, val in enumerate(row, 1):
+                        c = ws.cell(row=ri, column=ci, value=val)
+                        c.font = DATA_FONT; c.border = THIN
+                        c.alignment = RIGHT if isinstance(val, (int, float, Decimal)) else LEFT_ALIGN
+                tr = 4 + len(data)
+                ws.cell(row=tr, column=5, value="Subtotal").font = BOLD_FONT
+                ws.cell(row=tr, column=6, value=sec["subtotal"]).font = BOLD_FONT
+            out = BytesIO(); wb.save(out); out.seek(0)
+            return send_file(out, as_attachment=True, download_name="general_ledger.xlsx",
+                             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        if fmt == "pdf":
+            all_data = []
+            for sec in account_sections:
+                all_data.append([sec["account"].code, sec["account"].name, "", "", "", ""])
+                for r in sec["rows"]:
+                    all_data.append([r["date"], r["voucher"], r["description"], r["debit"], r["credit"], r["balance"]])
+                all_data.append(["", "", "", "", "Subtotal", sec["subtotal"]])
+                all_data.append(["", "", "", "", "", ""])
+            hdrs = ["Date", "Voucher #", "Description", "Debit", "Credit", "Balance"]
+            pdf_out = _build_pdf_landscape("General Ledger", hdrs, all_data, [24, 28, 60, 24, 24, 24])
+            return send_file(pdf_out, as_attachment=True, download_name="general_ledger.pdf",
+                             mimetype="application/pdf")
 
-    return render_template("finance/ledger.html", accounts=accounts,
-                           account=account, rows=rows,
+    return render_template("finance/ledger.html",
+                           account_sections=account_sections,
+                           heads=heads, leaf_accounts=leaf_accounts,
+                           mode=mode, selection_mode=selection_mode,
+                           selected_account_ids=account_ids_str,
+                           selected_head_ids=head_ids_str,
                            from_date=from_date, to_date=to_date,
+                           periods=periods, selected_period_id=selected_period_id,
+                           filter_mode=filter_mode, from_str=from_str, to_str=to_str,
                            now=datetime.utcnow())
 
 
@@ -251,7 +356,8 @@ def ledger():
 @finance_bp.route("/trial-balance")
 @login_required
 def trial_balance():
-    as_of = _parse_date(request.args.get("as_of")) or date.today()
+    _, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
+    as_of = to_date or date.today()
     balances = _all_account_balances(as_of)
 
     rows = []
@@ -293,7 +399,10 @@ def trial_balance():
 
     return render_template("finance/trial_balance.html", rows=rows,
                            total_dr=float(total_dr), total_cr=float(total_cr),
-                           as_of=as_of, now=datetime.utcnow())
+                           as_of=as_of,
+                           periods=periods, selected_period_id=selected_period_id,
+                           filter_mode=filter_mode, from_str=from_str, to_str=to_str,
+                           now=datetime.utcnow())
 
 
 # ═══════════════════════════════════════════════
@@ -303,8 +412,9 @@ def trial_balance():
 @finance_bp.route("/profit-loss")
 @login_required
 def profit_loss():
-    from_date = _parse_date(request.args.get("from")) or date(date.today().year, 1, 1)
-    to_date = _parse_date(request.args.get("to")) or date.today()
+    from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
+    if not from_date: from_date = date(date.today().year, 1, 1)
+    if not to_date: to_date = date.today()
 
     rev_balances = _all_account_balances(to_date, ["revenue"])
     exp_balances = _all_account_balances(to_date, ["expense"])
@@ -381,6 +491,8 @@ def profit_loss():
                            exp_rows=exp_rows, total_rev=float(total_rev),
                            total_exp=float(total_exp), net_income=net_income,
                            from_date=from_date, to_date=to_date,
+                           periods=periods, selected_period_id=selected_period_id,
+                           filter_mode=filter_mode, from_str=from_str, to_str=to_str,
                            now=datetime.utcnow())
 
 
@@ -391,7 +503,8 @@ def profit_loss():
 @finance_bp.route("/balance-sheet")
 @login_required
 def balance_sheet():
-    as_of = _parse_date(request.args.get("as_of")) or date.today()
+    _, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
+    as_of = to_date or date.today()
     as_of_end = as_of
 
     balances = _all_account_balances(as_of_end)
@@ -484,7 +597,10 @@ def balance_sheet():
                            total_assets=float(total_assets),
                            total_liabilities=float(total_liabilities),
                            total_equity=float(total_equity),
-                           as_of=as_of_end, now=datetime.utcnow())
+                           as_of=as_of_end,
+                           periods=periods, selected_period_id=selected_period_id,
+                           filter_mode=filter_mode, from_str=from_str, to_str=to_str,
+                           now=datetime.utcnow())
 
 
 # ═══════════════════════════════════════════════
@@ -494,8 +610,9 @@ def balance_sheet():
 @finance_bp.route("/socie")
 @login_required
 def socie():
-    from_date = _parse_date(request.args.get("from")) or date(date.today().year, 1, 1)
-    to_date = _parse_date(request.args.get("to")) or date.today()
+    from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
+    if not from_date: from_date = date(date.today().year, 1, 1)
+    if not to_date: to_date = date.today()
 
     ni = _net_income(to_date)
     eq_balances = _all_account_balances(to_date, ["equity"])
@@ -538,6 +655,8 @@ def socie():
                            movement_total=float(movement_total),
                            closing_total=float(closing_total),
                            from_date=from_date, to_date=to_date,
+                           periods=periods, selected_period_id=selected_period_id,
+                           filter_mode=filter_mode, from_str=from_str, to_str=to_str,
                            now=datetime.utcnow())
 
 
@@ -548,19 +667,20 @@ def socie():
 @finance_bp.route("/cash-flow")
 @login_required
 def cash_flow():
-    from_date = _parse_date(request.args.get("from")) or date(date.today().year, 1, 1)
-    to_date = _parse_date(request.args.get("to")) or date.today()
+    from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
+    if not from_date: from_date = date(date.today().year, 1, 1)
+    if not to_date: to_date = date.today()
     prev_date = date(from_date.year - 1, from_date.month, from_date.day) if from_date else None
 
     ni = _net_income(to_date)
 
-    cash_acct = ChartOfAccount.query.filter_by(code="1000").first()
-    ar_acct = ChartOfAccount.query.filter_by(code="1100").first()
-    inv_acct = ChartOfAccount.query.filter_by(code="1200").first()
-    ap_acct = ChartOfAccount.query.filter_by(code="2000").first()
-    accrued_acct = ChartOfAccount.query.filter_by(code="2100").first()
-    loans_acct = ChartOfAccount.query.filter_by(code="2200").first()
-    fa_acct = ChartOfAccount.query.filter_by(code="1300").first()
+    cash_acct = ChartOfAccount.query.filter_by(code="111").first()
+    ar_acct = ChartOfAccount.query.filter_by(code="112").first()
+    inv_acct = ChartOfAccount.query.filter_by(code="113").first()
+    ap_acct = ChartOfAccount.query.filter_by(code="211").first()
+    accrued_acct = ChartOfAccount.query.filter_by(code="212").first()
+    loans_acct = ChartOfAccount.query.filter_by(code="221").first()
+    fa_acct = ChartOfAccount.query.filter_by(code="121").first()
 
     def change(acct):
         if not acct:
@@ -643,4 +763,6 @@ def cash_flow():
                            net_operating=net_operating, net_investing=net_investing,
                            net_financing=net_financing, net_change=net_change,
                            from_date=from_date, to_date=to_date,
+                           periods=periods, selected_period_id=selected_period_id,
+                           filter_mode=filter_mode, from_str=from_str, to_str=to_str,
                            now=datetime.utcnow())

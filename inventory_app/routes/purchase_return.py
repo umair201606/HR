@@ -237,8 +237,8 @@ def save_return():
                 ))
 
     if action == "approve":
-        ap_acc = ChartOfAccount.query.filter_by(code="2000").first()
-        inv_acc = ChartOfAccount.query.filter_by(code="1200").first()
+        ap_acc = ChartOfAccount.query.filter_by(code="211").first()
+        inv_acc = ChartOfAccount.query.filter_by(code="113").first()
         if ap_acc and inv_acc:
             post_journal_entry(
                 voucher_type="PR",

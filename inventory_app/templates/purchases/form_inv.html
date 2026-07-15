@@ -223,6 +223,19 @@ function recalcTotal() {
   document.getElementById('poTotal').textContent = 'Rs. '+fmt(total);
 }
 
+// Auto-populate dates for new POs
+(function(){
+  ['order_date', 'expected_date'].forEach(function(n) {
+    var el = document.querySelector('[name="' + n + '"]');
+    if (el && !el.value) {
+      var now = new Date();
+      el.value = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0');
+    }
+  });
+})();
+
 {% if order %}
   {% for item in order.items.all() %}
 addRow({ product_id: {{ item.product_id }}, quantity: {{ item.quantity }}, unit_price: {{ item.unit_price }}, sku: '{{ item.product.sku if item.product else '' }}' });

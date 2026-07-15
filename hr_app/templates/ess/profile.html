@@ -15,7 +15,7 @@
         </div>
         <div>
             <h2 style="font-size:20px;font-weight:700;">{{ user.full_name }}</h2>
-            <p style="color:#6b7280;">{{ user.designation or '' }}{% if user.designation and user.department %} &middot; {% endif %}{{ user.department or '' }}</p>
+            <p style="color:var(--muted);">{{ user.designation or '' }}{% if user.designation and user.department %} &middot; {% endif %}{{ user.department or '' }}</p>
         </div>
     </div>
     <table>

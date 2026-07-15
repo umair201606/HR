@@ -51,7 +51,7 @@ def dashboard():
         today_present = Attendance.query.filter(Attendance.date == today, Attendance.clock_in != None).count()
         pending_leaves = LeaveRequest.query.filter(LeaveRequest.status == "pending").count()
         running_payroll = PayrollRun.query.filter(
-            PayrollRun.status == "draft", extract("month", PayrollRun.run_date) == today.month
+            PayrollRun.status == "unapproved", extract("month", PayrollRun.run_date) == today.month
         ).first()
         return jsonify({
             "total_employees": total_employees,

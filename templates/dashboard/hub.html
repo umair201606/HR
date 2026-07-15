@@ -22,4 +22,11 @@
     <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.4;">Ledger, Trial Balance, P&L, Balance Sheet, Cash Flow, Settings</p>
   </a>
   {% endif %}
+  {% if has_accounting %}
+  <a href="{{ url_for('accounting.dashboard') }}" style="display:flex;flex-direction:column;align-items:center;text-align:center;background:#fff;border-radius:10px;padding:36px 20px;text-decoration:none;color:#1f2937;border:1px solid #e5e7eb;transition:all .15s;" onmouseover="this.style.borderColor='#0f5257';this.style.boxShadow='0 4px 12px rgba(15,82,87,.1)';" onmouseout="this.style.borderColor='#e5e7eb';this.style.boxShadow='none';">
+    <div style="font-size:40px;margin-bottom:12px;">&#128202;</div>
+    <h3 style="margin:0 0 6px;font-size:16px;font-weight:600;">Accounting</h3>
+    <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.4;">Vouchers (CPV, CRV, BPV, BRV, JV), Chart of Accounts</p>
+  </a>
+  {% endif %}
 {% endblock %}

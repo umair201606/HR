@@ -64,7 +64,7 @@ def consumption_form(id=None):
         voucher.date = datetime.utcnow()
         voucher.department = request.form.get("department", "")
         voucher.reason = request.form.get("reason", "")
-        status = request.form.get("status", "draft")
+        status = request.form.get("status", "unapproved")
 
         db.session.flush()
 
@@ -154,7 +154,7 @@ def consumption_unapprove(id):
     reverse_stock_movements("CONS", v.id)
     from shared.ledger_utils import reverse_journal_entry
     reverse_journal_entry("CONS", v.id, created_by=current_user.id)
-    v.status = "draft"
+    v.status = "unapproved"
     v.approved_by = None
     v.approved_at = None
     db.session.commit()
@@ -185,7 +185,7 @@ def scrap_form(id=None):
 
         voucher.date = datetime.utcnow()
         voucher.reason = request.form.get("reason", "")
-        status = request.form.get("status", "draft")
+        status = request.form.get("status", "unapproved")
 
         db.session.flush()
 
@@ -275,7 +275,7 @@ def scrap_unapprove(id):
     reverse_stock_movements("SCRAP", v.id)
     from shared.ledger_utils import reverse_journal_entry
     reverse_journal_entry("SCRAP", v.id, created_by=current_user.id)
-    v.status = "draft"
+    v.status = "unapproved"
     v.approved_by = None
     v.approved_at = None
     db.session.commit()
@@ -306,7 +306,7 @@ def adjustment_form(id=None):
 
         voucher.date = datetime.utcnow()
         voucher.reason = request.form.get("reason", "")
-        status = request.form.get("status", "draft")
+        status = request.form.get("status", "unapproved")
 
         db.session.flush()
 
@@ -408,7 +408,7 @@ def adjustment_unapprove(id):
     reverse_stock_movements("ADJ", v.id)
     from shared.ledger_utils import reverse_journal_entry
     reverse_journal_entry("ADJ", v.id, created_by=current_user.id)
-    v.status = "draft"
+    v.status = "unapproved"
     v.approved_by = None
     v.approved_at = None
     db.session.commit()

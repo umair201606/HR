@@ -27,7 +27,7 @@
                     <td>{{ h.department or 'All' }}</td>
                     <td>{% if h.is_recurring %}&#10004;{% endif %}</td>
                 </tr>
-                {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No holidays</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="4" class="text-center" style="color:var(--muted);">No holidays</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

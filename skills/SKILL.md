@@ -1,11 +1,11 @@
 ---
 name: purchase-invoice-calculations
-description: Comprehensive calculation rules for building or verifying purchase invoices that have three independent Combined/Per-Item toggles (Discount, Expenses, Tax), pro-rata vs manual per-item allocation, Sales Tax, and Withholding (W/H) Tax. Use this skill whenever generating, calculating, validating, or explaining a purchase invoice, purchase order costing, or any document with subtotal → discount → expenses → tax → net payable logic, even if the user only mentions "invoice calculation," "discount %," "commission/freight/loading," "sales tax," or "W/H tax" without using the word "skill."
+description: Comprehensive calculation and UI rules for building or verifying purchase invoices that have three independent Combined/Per-Item toggles (Discount, Expenses, Tax), pro-rata vs manual per-item allocation, Sales Tax, and Withholding (W/H) Tax. Use this skill whenever generating, calculating, validating, or explaining a purchase invoice, purchase order costing, or any document with subtotal → discount → expenses → tax → net payable logic, even if the user only mentions "invoice calculation," "discount %," "commission/freight/loading," "sales tax," "W/H tax," or "Net Amount column" without using the word "skill."
 ---
 
 # Purchase Invoice Calculations
 
-This skill defines the complete, unambiguous math for a purchase invoice that has three independent mode toggles:
+This skill defines the complete, unambiguous math **and** the UI behavior for a purchase invoice that has three independent mode toggles:
 
 | Section  | Combined mode | Per Item mode |
 |----------|---------------|---------------|
@@ -23,11 +23,11 @@ Each of the three toggles (Discount, Expenses, Tax) is independent — any combi
 - `Qty` — quantity
 - `Rate` — unit rate
 - `Amount = Qty × Rate` (gross line amount)
-- `ItemDiscountPct` / `ItemDiscountVal` — only meaningful when Discount = Per Item
-- `ItemExpenseVal` — only meaningful when Expenses = Per Item
+- `ItemDiscountPct` / `ItemDiscountVal` — only meaningful when Discount = Per Item / Manual
+- `ItemExpenseVal` (Commission/Freight/Loading, each separate) — only meaningful when Expenses = Per Item / Manual
 - `ItemSalesTaxPct` — only meaningful when Tax = Per Item (always manual)
 
-**Invoice-level (Combined mode inputs):**
+**Invoice-level (Combined mode inputs — also used as the "pool" for Per Item/Pro-rata):**
 - `DiscountPct` or `DiscountVal` (mutually exclusive — see §2.3 on the "%"/"Val" toggle)
 - `Commission`, `Freight`, `LoadingUnloading` — flat Rupee values (never percentages)
 - `SalesTaxPct`, `WHTaxPct`
@@ -39,6 +39,9 @@ Each of the three toggles (Discount, Expenses, Tax) is independent — any combi
 - `TaxBase` — the amount Sales Tax and W/H Tax are both calculated on
 - `SalesTax`, `WHTax`
 - `NetPayable`
+
+**Derived per-line value (display only, see §6 for when it's shown):**
+- `NetAmount_i = Amount_i − ItemDiscount_i + ItemExpense_i` — the line's value after its own discount and expense share, feeding that line's tax base.
 
 ---
 
@@ -216,7 +219,53 @@ NetPayable = 5,150.00 + 895.44 − 154.50 = 5,890.94
 
 ---
 
-## 6. Quick Reference
+## 6. UI Interaction Spec
+
+This section is for whoever implements the invoice screen (form + table + summary). It translates §1–5 into concrete on-screen behavior so an implementer doesn't have to infer it.
+
+### 6.1 The three toggles
+Discount, Expenses, and Tax each get their own two-state control: **Combined | Per Item**. They are independent — never gate one toggle's availability on another's state.
+
+When Discount or Expenses is switched to **Per Item**, reveal a secondary two-state control beneath it: **Auto-split (pro-rata) | Manual**. Default a freshly-toggled Per Item section to Auto-split, since it requires no extra input from the user and reuses whatever combined pool was already entered (see the mode-switch rule in §5). Tax has no secondary control — Per Item tax is always manual, per §Step 5.
+
+### 6.2 Column visibility in the line-items table
+Columns appear or disappear based on the active sub-mode, not just the top-level toggle:
+
+| Section state | Extra column(s) shown | Editable? |
+|---|---|---|
+| Discount = Per Item / Manual | `Disc %`, `Disc Val` | Yes, per line |
+| Discount = Per Item / Auto-split | `Discount` (computed) | No — read-only, shows each line's split |
+| Discount = Combined | *(none)* | — |
+| Expenses = Per Item / Manual | `Comm.`, `Freight`, `Load/Unld` | Yes, per line |
+| Expenses = Per Item / Auto-split | `Expenses` (computed) | No — read-only |
+| Expenses = Combined | *(none)* | — |
+| Tax = Per Item | `Tax %` | Yes, per line |
+| Tax = Combined | *(none)* | — |
+
+Never show an editable per-line input for a section that's Combined — those values live only in the summary panel below the table while Combined is active.
+
+### 6.3 The `Net Amount` column
+`Net Amount` is a **derived, read-only** column: `Amount − ItemDiscount + ItemExpense` for that line (§1). It exists to show what a line is actually worth after its own discount/expense allocation, and it's what that line's tax gets calculated on when Tax = Per Item.
+
+- **Show it** whenever Discount and/or Expenses is Per Item (either sub-mode) — there's a real per-line adjustment to display.
+- **Hide it** when Discount and Expenses are both Combined. In that state no line carries an individual net value (§2.1) — `Net Amount` would just equal `Amount` on every row, which is redundant. Don't render a column that never differs from `Amount`; it invites the user to think a per-line discount was applied when it wasn't.
+
+### 6.4 The summary panel (below the entry form)
+The summary panel is the home for every **Combined**-mode value, plus the pool inputs for **Per Item/Auto-split** (since pro-rata still starts from a single entered pool — see §2.2/§3.2). It always shows, top to bottom: `Subtotal`, `Discount`, `Commission`, `Freight`, `Loading/Unld`, `Total Expenses`, `Sales Tax`, `W/H Tax`, `Net Payable`.
+
+- **Combined or Per Item/Auto-split:** the corresponding field(s) in the summary stay editable — this is where the user sets the % / flat Value or the flat Rupee pool.
+- **Per Item/Manual:** the corresponding summary field becomes read-only, displaying the rollup total computed from the line items (per the mode-switch rule in §5 — never blank or zero it out).
+- `Sales Tax` in the summary is editable only when Tax = Combined; in Per Item mode it's a read-only rollup of the per-line tax.
+- `W/H Tax` is always editable in the summary — it never has a per-item counterpart.
+- `Total Expenses` and `Net Payable` are always read-only rollups, regardless of mode.
+
+### 6.5 General rules
+- Re-derive the full calculation (§2–§6 of the math spec) on every edit — qty/rate change, mode toggle, or any input blur — rather than patching individual totals, to avoid drift between what's displayed and what the formulas would produce.
+- Apply the rounding/residual rule (§3) after every recompute, not just on save, so on-screen totals always match what a user could verify by hand-adding the visible line items.
+
+---
+
+## 7. Quick Reference
 
 ```
 Subtotal      = Σ Amount_i                 (Amount_i = Qty_i × Rate_i)
@@ -226,4 +275,5 @@ TaxBase       = Subtotal − TotalDiscount + TotalExpenses      (or per-line: Ne
 SalesTax      = combined %×TaxBase | Σ per-line %×LineTaxBase_i   (Tax is NEVER pro-rata)
 WHTax         = WHTaxPct% × TaxBase   (always Combined, never per-item)
 NetPayable    = TaxBase + SalesTax − WHTax
+NetAmount_i   = Amount_i − ItemDiscount_i + ItemExpense_i     (display-only; shown only when Discount and/or Expenses is Per Item)
 ```

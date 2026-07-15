@@ -45,13 +45,13 @@ def dashboard():
         InvProduct.reorder_level > 0
     ).count()
     pending_po = InvPurchaseOrder.query.filter(
-        InvPurchaseOrder.status.in_(["draft", "pending"])
+        InvPurchaseOrder.status.in_(["unapproved", "pending"])
     ).count()
     pending_so = InvSalesOrder.query.filter(
-        InvSalesOrder.status.in_(["draft", "confirmed"])
+        InvSalesOrder.status.in_(["unapproved", "confirmed"])
     ).count()
     unpaid_invoices = InvInvoice.query.filter(
-        InvInvoice.status.in_(["unpaid", "partial"])
+        InvInvoice.payment_status.in_(["unpaid", "partial"])
     ).count()
 
     # Stock valuation
@@ -71,9 +71,9 @@ def dashboard():
     adjustment_count = StockAdjustmentVoucher.query.filter_by(status="approved").count()
     stock_take_count = StockTake.query.filter_by(status="approved").count()
     pending_vouchers = (
-        ConsumptionVoucher.query.filter_by(status="draft").count() +
-        ScrapVoucher.query.filter_by(status="draft").count() +
-        StockAdjustmentVoucher.query.filter_by(status="draft").count()
+        ConsumptionVoucher.query.filter_by(status="unapproved").count() +
+        ScrapVoucher.query.filter_by(status="unapproved").count() +
+        StockAdjustmentVoucher.query.filter_by(status="unapproved").count()
     )
 
     recent_products = InvProduct.query.order_by(InvProduct.id.desc()).limit(5).all()

@@ -1,5 +1,4 @@
 from .user import Role, User
-from .chart_of_account import ChartOfAccount
 from .category import InvCategory
 from .product import InvProduct
 from .supplier import InvSupplier

@@ -25,7 +25,7 @@
                     <td>{{ ot_records|selectattr('date', 'equalto', r.date)|map(attribute='overtime_hours')|first|default(0, true) }}h</td>
                     <td><span class="badge badge-{{ 'success' if r.status == 'present' else 'warning' }}">{{ r.status }}</span></td>
                 </tr>
-                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No records</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No records</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
@@ -43,7 +43,7 @@
                     <td>{{ o.overtime_hours }}h</td>
                     <td>{{ o.double_overtime }}h</td>
                 </tr>
-                {% else %}<tr><td colspan="4" class="text-center" style="color:#999;">No overtime records</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="4" class="text-center" style="color:var(--muted);">No overtime records</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

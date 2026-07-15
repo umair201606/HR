@@ -10,7 +10,7 @@
     <form method="GET" class="search-form">
       <select name="status" class="form-control focus-ring" style="width:200px;display:inline-block;" onchange="this.form.submit()">
         <option value="">All Status</option>
-        {% for s in ['draft', 'unpaid', 'partial', 'paid', 'approved'] %}
+        {% for s in ['unapproved', 'unpaid', 'partial', 'paid', 'approved'] %}
         <option value="{{ s }}" {% if request.args.get('status') == s %}selected{% endif %}>{{ s|title }}</option>
         {% endfor %}
       </select>
@@ -49,7 +49,7 @@
   </div>
 </div>
 <style>
-.badge-draft { background:#e2e8f0; color:#475569; }
+.badge-unapproved { background:#e2e8f0; color:#475569; }
 .badge-unpaid { background:#fce4ec; color:#c62828; }
 .badge-partial { background:#fef3c7; color:#92400e; }
 .badge-paid { background:#dcfce7; color:#16a34a; }

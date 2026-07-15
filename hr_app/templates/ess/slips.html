@@ -22,7 +22,7 @@
                         <a href="{{ url_for('compensation.download_slip_pdf', sid=s.id) }}" class="btn btn-sm btn-primary">PDF</a>
                     </td>
                 </tr>
-                {% else %}<tr><td colspan="7" class="text-center" style="color:#999;">No slips yet</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="7" class="text-center" style="color:var(--muted);">No slips yet</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

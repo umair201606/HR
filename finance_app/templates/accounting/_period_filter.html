@@ -1,0 +1,105 @@
+<style>
+.period-toggle{display:flex;gap:0;margin-bottom:12px}
+.period-toggle label{display:flex;align-items:center;gap:6px;padding:6px 16px;font-size:13px;font-weight:600;border:1px solid #cbd5e1;cursor:pointer;background:#fff;color:#64748b;transition:all .12s;user-select:none;margin:0}
+.period-toggle label:first-child{border-radius:6px 0 0 6px}
+.period-toggle label:last-child{border-radius:0 6px 6px 0}
+.period-toggle label:not(:last-child){border-right:none}
+.period-toggle label.active{background:#e0f2f1;border-color:#0f5257;color:#0f5257;z-index:1}
+.period-toggle input[type=radio]{display:none}
+.period-fields{display:none}
+.period-fields.active{display:block}
+.period-fields select,.period-fields input{padding:7px 10px;font-size:13px;border:1px solid #cbd5e1;border-radius:5px;font-family:inherit}
+.period-fields select:focus,.period-fields input:focus{outline:none;border-color:#0f5257;box-shadow:0 0 0 3px rgba(15,82,87,.12)}
+.period-fields select:disabled,.period-fields input:disabled{background:#f1f5f9;color:#94a3b8}
+</style>
+
+<div class="period-filter-component">
+  <input type="hidden" name="filter_mode" id="filterModeInput" value="{{ filter_mode|default('period') }}">
+
+  <div class="period-toggle">
+    <label class="period-opt {{ 'active' if filter_mode|default('period') == 'period' else '' }}" data-mode="period">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="7" r="3" fill="currentColor" style="display:{{ 'block' if filter_mode|default('period') == 'period' else 'none' }}"/></svg>
+      Select Period
+    </label>
+    <label class="period-opt {{ 'active' if filter_mode|default('period') == 'custom' else '' }}" data-mode="custom">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="7" r="3" fill="currentColor" style="display:{{ 'block' if filter_mode|default('period') == 'custom' else 'none' }}"/></svg>
+      Custom Range
+    </label>
+  </div>
+
+  <div class="period-fields {{ 'active' if filter_mode|default('period') == 'period' else '' }}" id="periodSelectFields">
+    <select name="period_id" id="periodSelect" class="" style="width:100%;max-width:360px;">
+      <option value="">-- Select Period --</option>
+      {% for p in periods %}
+      <option value="{{ p.id }}" {{ 'selected' if selected_period_id|string == p.id|string else '' }}>
+        {{ p.period_name }} ({{ p.start_date.strftime('%d/%m/%y') }} - {{ p.end_date.strftime('%d/%m/%y') }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="period-fields {{ 'active' if filter_mode|default('period') == 'custom' else '' }}" id="customDateFields">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <div>
+        <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">From</label>
+        <input type="date" name="from" value="{{ from_val|default(from_str|default('')) }}" style="width:150px;">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px;text-transform:uppercase;letter-spacing:.3px;">End</label>
+        <input type="date" name="to" value="{{ to_val|default('') }}" style="width:150px;">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var container = document.currentScript ? document.currentScript.parentElement : document.querySelector('.period-filter-component:last-child');
+  if (!container) container = document.querySelector('.period-filter-component');
+  if (!container) return;
+
+  var modeInput = container.querySelector('#filterModeInput') || container.querySelector('[name="filter_mode"]');
+  var opts = container.querySelectorAll('.period-opt');
+  var periodFields = container.querySelector('#periodSelectFields');
+  var customFields = container.querySelector('#customDateFields');
+  var periodSelect = container.querySelector('#periodSelect');
+
+  opts.forEach(function(opt) {
+    opt.addEventListener('click', function() {
+      var mode = this.dataset.mode;
+      opts.forEach(function(o) {
+        o.classList.remove('active');
+        o.querySelector('circle:last-child').style.display = 'none';
+      });
+      this.classList.add('active');
+      this.querySelector('circle:last-child').style.display = 'block';
+      modeInput.value = mode;
+
+      if (mode === 'period') {
+        periodFields.classList.add('active');
+        customFields.classList.remove('active');
+        periodSelect.disabled = false;
+        var inputs = customFields.querySelectorAll('input');
+        inputs.forEach(function(inp) { inp.disabled = true; });
+      } else {
+        periodFields.classList.remove('active');
+        customFields.classList.add('active');
+        periodSelect.disabled = true;
+        var inputs = customFields.querySelectorAll('input');
+        inputs.forEach(function(inp) { inp.disabled = false; });
+      }
+    });
+  });
+
+  // Init disabled state
+  if (modeInput.value === 'custom') {
+    var inputs = customFields.querySelectorAll('input');
+    inputs.forEach(function(inp) { inp.disabled = false; });
+    if (periodSelect) periodSelect.disabled = true;
+  } else {
+    var inputs = customFields.querySelectorAll('input');
+    inputs.forEach(function(inp) { inp.disabled = true; });
+    if (periodSelect) periodSelect.disabled = false;
+  }
+})();
+</script>

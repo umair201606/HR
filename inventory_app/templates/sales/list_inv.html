@@ -10,7 +10,7 @@
     <form method="GET" class="search-form">
       <select name="status" class="form-control focus-ring" style="width:200px;display:inline-block;" onchange="this.form.submit()">
         <option value="">All Status</option>
-        {% for s in ['draft', 'confirmed', 'delivered', 'cancelled'] %}
+        {% for s in ['unapproved', 'confirmed', 'delivered', 'cancelled'] %}
         <option value="{{ s }}" {% if request.args.get('status') == s %}selected{% endif %}>{{ s|title }}</option>
         {% endfor %}
       </select>
@@ -28,7 +28,7 @@
           <td>{{ "%.2f"|format(o.total_amount) }}</td>
           <td><span class="badge badge-{{ o.status }}">{{ o.status|title }}</span></td>
           <td class="actions">
-            {% if o.status in ('draft', 'confirmed') %}
+            {% if o.status in ('unapproved', 'confirmed') %}
             <a href="{{ url_for('inv_sales.deliver_sale', id=o.id) }}" class="btn btn-sm btn-success" onclick="return confirm('Deliver this order? Stock will be deducted.')">Deliver</a>
             <a href="{{ url_for('inv_sales.cancel_sale', id=o.id) }}" class="btn btn-sm btn-warning" onclick="return confirm('Cancel?')">Cancel</a>
             <a href="{{ url_for('inv_sales.delete_sale', id=o.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete?')">Delete</a>
@@ -43,7 +43,7 @@
   </div>
 </div>
 <style>
-.badge-draft { background:#e2e8f0; color:#475569; }
+.badge-unapproved { background:#e2e8f0; color:#475569; }
 .badge-confirmed { background:#dbeafe; color:#1e40af; }
 .badge-delivered { background:#dcfce7; color:#16a34a; }
 .badge-cancelled { background:#fce4ec; color:#c62828; }

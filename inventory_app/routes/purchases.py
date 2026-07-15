@@ -37,7 +37,7 @@ def create_purchase():
             order_date=date.today(),
             expected_date=datetime.strptime(request.form["expected_date"], "%Y-%m-%d").date()
             if request.form.get("expected_date") else None,
-            status="draft",
+            status="unapproved",
             notes=request.form.get("notes", ""),
             created_by=current_user.id,
         )

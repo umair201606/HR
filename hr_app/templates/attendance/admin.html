@@ -44,7 +44,7 @@
                         </div>
                     </td>
                 </tr>
-                {% else %}<tr><td colspan="7" class="text-center" style="color:#999;">No records</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="7" class="text-center" style="color:var(--muted);">No records</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
@@ -64,7 +64,7 @@
                     <td>{{ c.new_value }}</td>
                     <td>{{ c.reason[:40] }}</td>
                 </tr>
-                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No corrections</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No corrections</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

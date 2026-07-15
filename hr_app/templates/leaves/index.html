@@ -38,7 +38,7 @@
                     <td><span class="badge badge-{{ 'success' if r.status == 'approved' else 'danger' if r.status == 'rejected' else 'warning' }}">{{ r.status }}</span></td>
                     <td>{{ r.created_at.strftime('%d-%b-%Y') }}</td>
                 </tr>
-                {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No leave requests</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No leave requests</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>

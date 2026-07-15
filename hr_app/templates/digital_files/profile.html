@@ -47,7 +47,7 @@
                         <td>{{ 'Yes' if f.is_verified else 'No' }}</td>
                         <td><a href="{{ url_for('digital_files.download', fid=f.id) }}" class="btn btn-sm btn-outline">Download</a></td>
                     </tr>
-                    {% else %}<tr><td colspan="6" class="text-center" style="color:#999;">No documents</td></tr>{% endfor %}
+                    {% else %}<tr><td colspan="6" class="text-center" style="color:var(--muted);">No documents</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>

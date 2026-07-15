@@ -7,10 +7,17 @@ from ..models.invoice import InvInvoice, InvInvoiceItem
 from ..models.customer import InvCustomer
 from ..models.product import InvProduct
 from ..models.stock_movement import InvStockMovement
+from ..models.sales_order import InvSalesOrder
 from shared.ledger_utils import post_journal_entry, reverse_journal_entry
 from shared.models.ledger import ChartOfAccount
 
 inv_inv_bp = Blueprint("inv_invoices", __name__, url_prefix="/inventory/invoices")
+
+
+def next_voucher():
+    last = InvInvoice.query.order_by(InvInvoice.id.desc()).first()
+    n = (last.id + 1) if last else 1
+    return f"SI-{datetime.utcnow():%Y%m}-{n:04d}"
 
 
 def next_invoice_num():
@@ -39,6 +46,8 @@ def invoice_form(id):
                 "unit_price": it.unit_price,
                 "discount_pct": it.discount_pct,
                 "discount_amount": it.discount_amount,
+                "delivery": it.delivery,
+                "installation": it.installation,
                 "sales_tax_pct": it.sales_tax_pct,
                 "total_before_discount": it.total_before_discount,
                 "total_after_discount": it.total_after_discount,
@@ -55,7 +64,7 @@ def list_invoices():
     status = request.args.get("status", "")
     query = InvInvoice.query
     if status:
-        query = query.filter_by(status=status)
+        query = query.filter_by(voucher_status=status)
     invoices = query.order_by(InvInvoice.id.desc()).all()
     return render_template("invoices/list_inv.html", invoices=invoices)
 
@@ -86,10 +95,11 @@ def save_invoice():
 
     if inv_id:
         inv = InvInvoice.query.get_or_404(inv_id)
-        if inv.status == "approved":
+        if inv.voucher_status == "approved":
             return jsonify({"ok": False, "error": "Cannot modify approved invoice"}), 400
     else:
         inv = InvInvoice(
+            voucher_number=next_voucher(),
             invoice_number=data.get("invoice_number") or next_invoice_num(),
             created_by=current_user.id,
         )
@@ -103,20 +113,27 @@ def save_invoice():
     inv.customer_id = data.get("customer_id")
     inv.due_date = datetime.strptime(data.get("due_date"), "%Y-%m-%d") if data.get("due_date") else None
     inv.discount_mode = data.get("discount_mode", "general")
+    inv.charges_mode = data.get("charges_mode", "general")
     inv.tax_mode = data.get("tax_mode", "general")
+
     inv.global_discount_pct = float(data.get("global_discount_pct", 0))
     inv.global_discount_value = float(data.get("global_discount_value", 0))
+    inv.global_delivery = float(data.get("global_delivery", 0))
+    inv.global_installation = float(data.get("global_installation", 0))
     inv.global_sales_tax_pct = float(data.get("global_sales_tax_pct", 0))
     inv.notes = data.get("notes", "")
     inv.subtotal = float(data.get("subtotal", 0))
     inv.total_discount = float(data.get("total_discount", 0))
+    inv.total_charges = float(data.get("total_charges", 0))
     inv.total_tax = float(data.get("total_tax", 0))
     inv.total_amount = float(data.get("total_amount", 0))
 
     if action == "approve":
-        inv.status = "approved"
-    elif inv.status == "draft":
-        inv.status = "unpaid"
+        inv.voucher_status = "approved"
+        inv.approved_by = current_user.id
+        inv.approved_at = datetime.utcnow()
+    elif inv.voucher_status == "unapproved":
+        inv.voucher_status = "unpaid"
 
     db.session.flush()
 
@@ -131,9 +148,12 @@ def save_invoice():
             unit_price=float(row.get("unit_price", 0)),
             discount_pct=float(row.get("discount_pct", 0)),
             discount_amount=float(row.get("discount_amount", 0)),
+            delivery=float(row.get("delivery", 0)),
+            installation=float(row.get("installation", 0)),
             sales_tax_pct=float(row.get("sales_tax_pct", 0)),
             total_before_discount=float(row.get("total_before_discount", 0)),
             total_after_discount=float(row.get("total_after_discount", 0)),
+            comments=row.get("comments", ""),
         )
         db.session.add(item)
 
@@ -151,10 +171,10 @@ def save_invoice():
                 ))
 
     if action == "approve":
-        ar_acc = ChartOfAccount.query.filter_by(code="1100").first()
-        rev_acc = ChartOfAccount.query.filter_by(code="4000").first()
-        cogs_acc = ChartOfAccount.query.filter_by(code="5000").first()
-        inv_acc = ChartOfAccount.query.filter_by(code="1200").first()
+        ar_acc = ChartOfAccount.query.filter_by(code="112").first()
+        rev_acc = ChartOfAccount.query.filter_by(code="411").first()
+        cogs_acc = ChartOfAccount.query.filter_by(code="511").first()
+        inv_acc = ChartOfAccount.query.filter_by(code="113").first()
         lines = [
             {"account_id": ar_acc.id, "debit": float(inv.total_amount), "credit": 0,
              "description": f"AR - {inv.invoice_number}"},
@@ -180,7 +200,7 @@ def save_invoice():
         post_journal_entry(
             voucher_type="SI",
             voucher_id=inv.id,
-            voucher_number=inv.invoice_number,
+            voucher_number=inv.voucher_number,
             description=f"Sales Invoice {inv.invoice_number} - {inv.customer.name if inv.customer else ''}",
             lines=lines,
             entry_date=datetime.utcnow(),
@@ -194,20 +214,25 @@ def save_invoice():
         msg = "changes saved"
     else:
         msg = "saved"
-    return jsonify({"ok": True, "id": inv.id, "status": inv.status,
-                    "number": inv.invoice_number, "message": f"Invoice {msg}"})
+    return jsonify({"ok": True, "id": inv.id, "voucher_status": inv.voucher_status,
+                    "payment_status": inv.payment_status,
+                    "number": inv.invoice_number, "voucher": inv.voucher_number,
+                    "message": f"Invoice {msg}"})
 
 
 @inv_inv_bp.route("/unapprove/<int:id>", methods=["POST"])
 @login_required
 def unapprove_invoice(id):
     inv = InvInvoice.query.get_or_404(id)
-    if inv.status != "approved":
+    if inv.voucher_status != "approved":
         return jsonify({"ok": False, "error": "Only approved invoices can be unapproved"}), 400
 
     reverse_journal_entry("SI", inv.id, current_user.id)
 
-    inv.status = "unpaid"
+    inv.voucher_status = "unpaid"
+    inv.payment_status = "unpaid"
+    inv.approved_by = None
+    inv.approved_at = None
 
     InvStockMovement.query.filter_by(
         reference_type="sales_invoice", reference_id=inv.id
@@ -220,8 +245,24 @@ def unapprove_invoice(id):
                 prod.current_stock += item.quantity
 
     db.session.commit()
-    return jsonify({"ok": True, "status": "unpaid",
+    return jsonify({"ok": True, "voucher_status": "unpaid",
                     "message": "Invoice unapproved and unlocked"})
+
+
+@inv_inv_bp.route("/delete/<int:id>", methods=["POST"])
+@login_required
+def delete_invoice(id):
+    inv = InvInvoice.query.get_or_404(id)
+    if inv.voucher_status == "approved":
+        return jsonify({"ok": False, "error": "Cannot delete an approved invoice. Unapprove it first."}), 400
+    try:
+        InvInvoiceItem.query.filter_by(invoice_id=inv.id).delete()
+        db.session.delete(inv)
+        db.session.commit()
+        return jsonify({"ok": True, "message": "Invoice deleted successfully"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @inv_inv_bp.route("/pay/<int:id>", methods=["POST"])
@@ -234,11 +275,11 @@ def pay_invoice(id):
     else:
         inv.paid_amount = (inv.paid_amount or 0) + amount
         if inv.paid_amount >= inv.total_amount:
-            inv.status = "paid"
+            inv.payment_status = "paid"
         else:
-            inv.status = "partial"
-        cash_acc = ChartOfAccount.query.filter_by(code="1000").first()
-        ar_acc = ChartOfAccount.query.filter_by(code="1100").first()
+            inv.payment_status = "partial"
+        cash_acc = ChartOfAccount.query.filter_by(code="111").first()
+        ar_acc = ChartOfAccount.query.filter_by(code="112").first()
         if cash_acc and ar_acc:
             post_journal_entry(
                 voucher_type="PMT",
@@ -289,5 +330,5 @@ def api_customers():
     customers = query.order_by(InvCustomer.name).limit(20).all()
     return jsonify([{
         "id": c.id, "name": c.name, "city": c.city or "",
-        "phone": c.phone or "",
+        "phone": c.phone or "", "address": c.address or "",
     } for c in customers])
