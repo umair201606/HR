@@ -132,8 +132,8 @@ def save_invoice():
         inv.voucher_status = "approved"
         inv.approved_by = current_user.id
         inv.approved_at = datetime.utcnow()
-    elif inv.voucher_status == "unapproved":
-        inv.voucher_status = "unpaid"
+    elif inv.voucher_status != "approved":
+        inv.voucher_status = "unapproved"
 
     db.session.flush()
 
