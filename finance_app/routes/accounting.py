@@ -143,15 +143,16 @@ def voucher_form(id=None):
             flash("Add at least one line with amount.", "error")
             return render_template("accounting/voucher_form.html", voucher=voucher, **_err_ctx)
 
+        def _safe_dec(val):
+            try:
+                return Decimal(str(float(val)))
+            except (ValueError, TypeError):
+                return Decimal("0")
+
         if voucher.voucher_type in CASH_BANK_TYPES:
             if not voucher.cash_bank_account_id:
                 flash("Select a Cash/Bank account.", "error")
                 return render_template("accounting/voucher_form.html", voucher=voucher, **_err_ctx)
-            def _safe_dec(val):
-                try:
-                    return Decimal(str(float(val)))
-                except (ValueError, TypeError):
-                    return Decimal("0")
             total = sum(
                 (_safe_dec(d) for d in debits if d.strip()),
                 Decimal("0"),

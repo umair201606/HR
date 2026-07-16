@@ -70,7 +70,7 @@ tfoot td{font-weight:700;background:#f8f9ff;border-top:2px solid #1a1a2e;padding
     <tbody>
       {% for line in lines %}
       <tr>
-        <td>{{ line.line_no }}</td>
+        <td>{{ loop.index }}</td>
         <td style="font-family:monospace">{{ line.account.code }}</td>
         <td>{{ line.account.name }}</td>
         <td>{{ line.description }}</td>
