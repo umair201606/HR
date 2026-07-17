@@ -21,7 +21,7 @@
     <div>
       <div class="report-company">{{ company.company_name if company else '' }}</div>
       <div class="report-title-lg">Profit &amp; Loss Statement</div>
-      <div class="report-period">For the period {{ from_date.strftime('%d %B %Y') }} to {{ to_date.strftime('%d %B %Y') }}</div>
+      <div class="report-period">{% if from_date %}For the period {{ from_date.strftime('%d %B %Y') }} to {{ to_date.strftime('%d %B %Y') }}{% else %}Select a period and click <strong>View</strong>{% endif %}</div>
     </div>
   </div>
   <div class="overflow-x-auto">

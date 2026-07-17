@@ -9,3 +9,4 @@ from .purchase_return import InvPurchaseReturn, InvPurchaseReturnItem
 from .sales_order import InvSalesOrder, InvSalesOrderItem
 from .stock_movement import InvStockMovement
 from .invoice import InvInvoice
+from .unit import InvUnit

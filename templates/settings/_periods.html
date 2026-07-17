@@ -21,12 +21,12 @@
           <td style="text-align:right;">
             {% if p.is_closed %}
             <form method="POST" action="{{ url_for('settings.reopen_period', id=p.id) }}" style="display:inline;">
-              <button type="submit" class="bsm">Reopen</button>
+              <button type="submit" class="btn btn-sm btn-outline">Reopen</button>
             </form>
             {% else %}
             <form method="POST" action="{{ url_for('settings.close_period', id=p.id) }}" style="display:inline;"
                   onsubmit="return confirm('Close {{ p.period_name }}?');">
-              <button type="submit" class="bsm">Close</button>
+              <button type="submit" class="btn btn-sm btn-danger">Close</button>
             </form>
             {% endif %}
           </td>
@@ -39,7 +39,7 @@
   </div>
 
   <form method="POST" action="{{ url_for('settings.seed_periods') }}" style="margin-top:12px;">
-    <button type="submit" class="bsm">+ Seed current fiscal year</button>
+    <button type="submit" class="btn btn-sm btn-outline">+ Seed current fiscal year</button>
   </form>
 </div>
 

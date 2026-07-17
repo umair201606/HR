@@ -22,6 +22,7 @@ def register_inventory_blueprints(app):
     from .routes.stock import inv_stock_bp
     from .routes.vouchers import inv_vouchers_bp
     from .routes.reports import inv_reports_bp
+    from .routes.units import inv_units_bp
 
     app.register_blueprint(inv_auth_bp)
     app.register_blueprint(inv_cat_bp)
@@ -29,5 +30,6 @@ def register_inventory_blueprints(app):
     app.register_blueprint(inv_stock_bp)
     app.register_blueprint(inv_vouchers_bp)
     app.register_blueprint(inv_reports_bp)
+    app.register_blueprint(inv_units_bp)
 
     return app

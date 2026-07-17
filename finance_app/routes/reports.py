@@ -79,13 +79,16 @@ def _resolve_period():
     periods = AccountingPeriod.query.order_by(AccountingPeriod.start_date.desc()).all()
     selected_period_id = period_id
 
+    # Only auto-default to active period when user explicitly submitted a filter
+    has_filters = any(k in request.args for k in ("filter_mode", "period_id", "from", "to"))
+
     if filter_mode == "period" and period_id:
         period = AccountingPeriod.query.get(period_id)
         if period:
             from_date = period.start_date
             to_date = period.end_date
 
-    if not from_date and not to_date:
+    if has_filters and not from_date and not to_date:
         active = _default_period()
         if active:
             from_date = active.start_date
@@ -406,6 +409,17 @@ def ledger():
 
     from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
 
+    # Don't auto-calculate on first page load
+    if from_date is None:
+        return render_template("finance/ledger.html", account_sections=[],
+                               heads=heads, leaf_accounts=leaf_accounts,
+                               mode="", selection_mode="custom",
+                               selected_account_ids="", selected_head_ids="",
+                               from_date=None, to_date=None,
+                               periods=periods, selected_period_id=None,
+                               filter_mode="", from_str="", to_str="",
+                               now=datetime.utcnow())
+
     mode = request.args.get("mode", "all")
     selection_mode = request.args.get("selection_mode", "custom")
     account_ids_str = request.args.get("account_ids", "")
@@ -495,6 +509,17 @@ def ledger():
 @login_required
 def trial_balance():
     from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
+
+    if from_date is None:
+        return render_template("finance/trial_balance.html", rows=[],
+                               total_dr_opening=0, total_cr_opening=0,
+                               total_dr_movement=0, total_cr_movement=0,
+                               total_dr_closing=0, total_cr_closing=0,
+                               as_of=date.today(), from_date=None,
+                               periods=periods, selected_period_id=None,
+                               filter_mode="", from_str="", to_str="",
+                               now=datetime.utcnow())
+
     as_of = to_date or date.today()
 
     opening_as_of = None
@@ -636,8 +661,13 @@ def trial_balance():
 @login_required
 def profit_loss():
     from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
-    if not from_date: from_date = date(date.today().year, 1, 1)
-    if not to_date: to_date = date.today()
+
+    if from_date is None:
+        return render_template("finance/profit_loss.html", pl_rows=[], net_profit=0,
+                               from_date=None, to_date=None,
+                               periods=periods, selected_period_id=None,
+                               filter_mode="", from_str="", to_str="",
+                               now=datetime.utcnow())
 
     pl_rows, net_profit = _pl_rows(from_date, to_date)
 
@@ -710,7 +740,16 @@ def profit_loss():
 @finance_bp.route("/balance-sheet")
 @login_required
 def balance_sheet():
-    _, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
+    from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
+
+    if from_date is None:
+        return render_template("finance/balance_sheet.html", assets=[], liabilities=[], equity=[],
+                               total_assets=0, total_liabilities=0, total_equity=0,
+                               as_of=date.today(),
+                               periods=periods, selected_period_id=None,
+                               filter_mode="", from_str="", to_str="",
+                               now=datetime.utcnow())
+
     as_of = to_date or date.today()
     as_of_end = as_of
 
@@ -818,8 +857,14 @@ def balance_sheet():
 @login_required
 def socie():
     from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
-    if not from_date: from_date = date(date.today().year, 1, 1)
-    if not to_date: to_date = date.today()
+
+    if from_date is None:
+        return render_template("finance/socie.html", rows=[], opening_total=0,
+                               movement_total=0, closing_total=0,
+                               from_date=None, to_date=None,
+                               periods=periods, selected_period_id=None,
+                               filter_mode="", from_str="", to_str="",
+                               now=datetime.utcnow())
 
     ni = _net_income(to_date)
     eq_balances = _all_account_balances(to_date, ["equity"])
@@ -883,8 +928,16 @@ def cash_flow():
     reconcile to.
     """
     from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
-    if not from_date: from_date = date(date.today().year, 1, 1)
-    if not to_date: to_date = date.today()
+
+    if from_date is None:
+        return render_template("finance/cash_flow.html", op_items=[], inv_items=[], fin_items=[],
+                               net_operating=0, net_investing=0, net_financing=0,
+                               net_change=0, opening_cash=0, closing_cash=0,
+                               cash_movement=0, from_date=None, to_date=None,
+                               periods=periods, selected_period_id=None,
+                               filter_mode="", from_str="", to_str="",
+                               now=datetime.utcnow())
+
     opening_cutoff = from_date - timedelta(days=1)
 
     # Net profit for the period: sum of (cr - dr) over P&L accounts.

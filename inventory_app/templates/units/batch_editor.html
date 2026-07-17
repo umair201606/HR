@@ -1,0 +1,187 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Batch Import Units{% endblock %}
+{% block page_title %}Batch Import Units{% endblock %}
+{% block extra_css %}
+<style>
+  .be-wrap{overflow-x:auto}
+  .be-tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .be-tbl th{background:#f1f5f9;padding:8px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;border-bottom:2px solid #e2e8f0}
+  .be-tbl td{padding:4px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+  .be-tbl .be-inp{width:100%;padding:6px 8px;border:1px solid #d8d3c4;border-radius:3px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;transition:border-color .12s,background .12s}
+  .be-tbl .be-inp:focus{border-color:#0f5257}
+  .be-tbl .be-inp.err{border-color:#dc2626;background:#fef2f2}
+  .be-tbl .be-inp.ok{border-color:#16a34a;background:#f0fdf4}
+  .be-tbl .be-del{width:32px;height:32px;border-radius:50%;border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .12s}
+  .be-tbl .be-del:hover{background:#fef2f2}
+  .be-summary{font-size:13px;color:#64748b;margin-bottom:10px}
+  .be-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .be-add{background:#fff;border:1px dashed #0f5257;color:#0f5257;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600;transition:all .12s}
+  .be-add:hover{background:#f0fdfa}
+  .be-msg{font-size:10.5px;margin-top:2px;line-height:1.3}
+  .be-msg.err{color:#dc2626}
+  .be-msg.ok{color:#16a34a}
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-h">Review &amp; Edit Units</div>
+  <div class="card-b">
+    <p class="be-summary">Review the units below before saving. Editable — change names, abbreviations, or delete rows as needed.</p>
+
+    <form id="batchForm" method="POST" action="{{ url_for('inv_units.batch_editor') }}">
+      <input type="hidden" name="data" id="dataInput" value="">
+      <div class="be-wrap">
+        <table class="be-tbl" id="beTbl">
+          <thead>
+            <tr><th style="width:30px;">#</th><th>Name *</th><th style="width:140px;">Abbreviation *</th><th>Explanation</th><th style="width:44px;"></th></tr>
+          </thead>
+          <tbody id="beBody">
+            {% for r in rows %}
+            <tr>
+              <td style="text-align:center;color:#94a3b8;font-size:11px;" class="be-idx">{{ loop.index }}</td>
+              <td><input type="text" class="be-inp be-name" value="{{ r.name }}"><div class="be-msg"></div></td>
+              <td><input type="text" class="be-inp be-abbr" value="{{ r.abbreviation }}" maxlength="20"><div class="be-msg"></div></td>
+              <td><input type="text" class="be-inp be-expl" value="{{ r.explanation }}"></td>
+              <td><button type="button" class="be-del" onclick="delRow(this)" title="Remove">&times;</button></td>
+            </tr>
+            {% else %}
+            <tr>
+              <td style="text-align:center;color:#94a3b8;font-size:11px;" class="be-idx">1</td>
+              <td><input type="text" class="be-inp be-name" placeholder="Unit name"><div class="be-msg"></div></td>
+              <td><input type="text" class="be-inp be-abbr" placeholder="e.g. kg" maxlength="20"><div class="be-msg"></div></td>
+              <td><input type="text" class="be-inp be-expl" placeholder="Optional"></td>
+              <td><button type="button" class="be-del" onclick="delRow(this)" title="Remove">&times;</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="be-actions">
+        <button type="button" class="be-add" onclick="addRow()">+ Add Row</button>
+        <button type="submit" class="btn btn-primary" onclick="return collectData()">Save All</button>
+        <a href="{{ url_for('inv_units.list_units') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+var CHECK_URL = '{{ url_for("inv_units.check_duplicate") }}';
+var timers = {};
+
+function checkField(inp, msgEl) {
+  var val = inp.value.trim();
+  var field = inp.classList.contains('be-name') ? 'name' : 'abbreviation';
+  inp.classList.remove('err', 'ok');
+  msgEl.className = 'be-msg';
+  msgEl.textContent = '';
+  if (!val) return;
+
+  var url = CHECK_URL + '?field=' + encodeURIComponent(field) + '&value=' + encodeURIComponent(val);
+  fetch(url, { credentials: 'same-origin' })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){
+      if (d.exists) {
+        inp.classList.add('err');
+        msgEl.className = 'be-msg err';
+        msgEl.textContent = 'Already taken';
+      } else {
+        inp.classList.add('ok');
+        msgEl.className = 'be-msg ok';
+        msgEl.textContent = 'Available';
+      }
+    })
+    .catch(function(e){ console.warn('Check failed:', e); });
+}
+
+function debounceCheck(inp, msgEl) {
+  var key = inp === msgEl ? inp.name : (inp.className + '_' + Math.random());
+  clearTimeout(timers[key]);
+  timers[key] = setTimeout(function(){ checkField(inp, msgEl); }, 400);
+}
+
+function wireRow(tr) {
+  var names = tr.querySelectorAll('.be-name, .be-abbr');
+  names.forEach(function(inp){
+    var msgEl = inp.parentElement.querySelector('.be-msg');
+    if (!msgEl) return;
+    inp.addEventListener('input', function(){ debounceCheck(inp, msgEl); });
+  });
+}
+
+function addRow() {
+  var tbody = document.getElementById('beBody');
+  var tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td style="text-align:center;color:#94a3b8;font-size:11px;" class="be-idx">' + (tbody.children.length + 1) + '</td>' +
+    '<td><input type="text" class="be-inp be-name" placeholder="Unit name"><div class="be-msg"></div></td>' +
+    '<td><input type="text" class="be-inp be-abbr" placeholder="e.g. kg" maxlength="20"><div class="be-msg"></div></td>' +
+    '<td><input type="text" class="be-inp be-expl" placeholder="Optional"></td>' +
+    '<td><button type="button" class="be-del" onclick="delRow(this)" title="Remove">&times;</button></td>';
+  tbody.appendChild(tr);
+  wireRow(tr);
+  reindex();
+}
+
+function delRow(btn) {
+  var tr = btn.closest('tr');
+  tr.parentNode.removeChild(tr);
+  reindex();
+}
+
+function reindex() {
+  var idxs = document.querySelectorAll('.be-idx');
+  for (var i = 0; i < idxs.length; i++) idxs[i].textContent = i + 1;
+}
+
+function collectData() {
+  var rows = [];
+  var err = false;
+  var names = {};
+  var abbrs = {};
+  var msgs = [];
+
+  var tbody = document.getElementById('beBody');
+  for (var i = 0; i < tbody.children.length; i++) {
+    var tr = tbody.children[i];
+    var nameInp = tr.querySelector('.be-name');
+    var abbrInp = tr.querySelector('.be-abbr');
+    var explInp = tr.querySelector('.be-expl');
+    var name = nameInp.value.trim();
+    var abbr = abbrInp.value.trim();
+    var expl = explInp.value.trim();
+
+    nameInp.classList.remove('err');
+    abbrInp.classList.remove('err');
+
+    if (!name && !abbr) continue;
+    if (!name) { nameInp.classList.add('err'); err = true; msgs.push('Row ' + (i+1) + ': Name required'); }
+    if (!abbr) { abbrInp.classList.add('err'); err = true; msgs.push('Row ' + (i+1) + ': Abbreviation required'); }
+
+    if (name && names[name]) { nameInp.classList.add('err'); err = true; msgs.push('Duplicate name "' + name + '"'); }
+    if (abbr && abbrs[abbr]) { abbrInp.classList.add('err'); err = true; msgs.push('Duplicate abbreviation "' + abbr + '"'); }
+
+    // Check DB conflict markers on inputs
+    if (nameInp.classList.contains('err')) { err = true; }
+    if (abbrInp.classList.contains('err')) { err = true; }
+
+    names[name] = true;
+    abbrs[abbr] = true;
+
+    rows.push({ name: name, abbreviation: abbr, explanation: expl });
+  }
+
+  if (err) {
+    alert('Please fix the highlighted errors.\n' + msgs.join('\n'));
+    return false;
+  }
+
+  document.getElementById('dataInput').value = JSON.stringify(rows);
+  return true;
+}
+
+// Wire existing rows
+document.querySelectorAll('#beBody tr').forEach(function(tr){ wireRow(tr); });
+</script>
+{% endblock %}

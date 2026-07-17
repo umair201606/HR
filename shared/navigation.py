@@ -148,6 +148,8 @@ NAV = {
                  "active": {"prefix": "inv_products"}},
                 {"endpoint": "inv_categories.list_categories", "icon": "&#9632;", "label": "Categories",
                  "active": {"prefix": "inv_categories"}},
+                {"endpoint": "inv_units.list_units", "icon": "&#9632;", "label": "Units",
+                 "active": {"prefix": "inv_units"}},
                 {"endpoint": "inv_stock.list_stock", "icon": "&#9632;", "label": "Stock Movements",
                  "active": {"prefix": "inv_stock"}},
             ]),

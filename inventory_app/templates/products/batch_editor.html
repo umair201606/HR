@@ -1,0 +1,369 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Batch Import Products{% endblock %}
+{% block page_title %}Batch Import Products{% endblock %}
+{% block extra_css %}
+<style>
+  .be-wrap{overflow-x:auto}
+  .be-tbl{width:100%;border-collapse:collapse;font-size:13px}
+  .be-tbl th{background:#f1f5f9;padding:8px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#64748b;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+  .be-tbl td{padding:4px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+  .be-tbl .be-inp{width:100%;padding:6px 8px;border:1px solid #d8d3c4;border-radius:3px;font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;transition:border-color .12s,background .12s;min-width:60px}
+  .be-tbl .be-inp:focus{border-color:#0f5257}
+  .be-tbl .be-inp.err{border-color:#dc2626;background:#fef2f2}
+  .be-tbl .be-inp.ok{border-color:#16a34a;background:#f0fdf4}
+  .be-tbl .be-sel{width:100%;padding:5px 6px;border:1px solid #d8d3c4;border-radius:3px;font-size:12px;font-family:inherit;outline:none;box-sizing:border-box;background:#fff;cursor:pointer;min-width:72px}
+  .be-tbl .be-sel:focus{border-color:#0f5257}
+  .be-tbl .be-del{width:32px;height:32px;border-radius:50%;border:1px solid #fecaca;background:#fff;color:#dc2626;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .12s}
+  .be-tbl .be-del:hover{background:#fef2f2}
+  .be-summary{font-size:13px;color:#64748b;margin-bottom:10px}
+  .be-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .be-add{background:#fff;border:1px dashed #0f5257;color:#0f5257;padding:6px 14px;border-radius:5px;cursor:pointer;font-size:13px;font-weight:600;transition:all .12s}
+  .be-add:hover{background:#f0fdfa}
+  .be-msg{font-size:10.5px;margin-top:2px;line-height:1.3}
+  .be-msg.err{color:#dc2626}
+  .be-msg.ok{color:#16a34a}
+</style>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-h">Review &amp; Edit Products</div>
+  <div class="card-b">
+    <p class="be-summary">Review the products below before saving. Editable — change values or delete rows as needed. A ledger account is auto-created for each product.</p>
+
+    <form id="batchForm" method="POST" action="{{ url_for('inv_products.batch_editor') }}">
+      <input type="hidden" name="data" id="dataInput" value="">
+      <div class="be-wrap">
+        <table class="be-tbl" id="beTbl">
+          <thead>
+            <tr>
+              <th style="width:30px;">#</th>
+              <th style="width:120px;">SKU *</th>
+              <th style="width:180px;">Name *</th>
+              <th style="width:130px;">Description</th>
+              <th style="width:100px;">Category</th>
+              <th style="width:70px;">Unit Price</th>
+              <th style="width:70px;">Cost Price</th>
+              <th style="width:60px;">Reorder</th>
+              <th style="width:60px;">Stock</th>
+              <th style="width:80px;">Unit <button type="button" class="be-add" onclick="openUnitModal()" style="padding:1px 6px;font-size:10px;border-width:1px;margin-left:4px;">+</button></th>
+              <th style="width:44px;"></th>
+            </tr>
+          </thead>
+          <tbody id="beBody">
+            {% for r in rows %}
+            <tr>
+              <td style="text-align:center;color:#94a3b8;font-size:11px;" class="be-idx">{{ loop.index }}</td>
+              <td><input type="text" class="be-inp be-sku" value="{{ r.sku }}" style="text-transform:uppercase"><div class="be-msg"></div></td>
+              <td><input type="text" class="be-inp be-name" value="{{ r.name }}"><div class="be-msg"></div></td>
+              <td><input type="text" class="be-inp be-desc" value="{{ r.description }}"></td>
+              <td><input type="text" class="be-inp be-cat" value="{{ r.category_name }}" placeholder="Cat. name"></td>
+              <td><input type="text" class="be-inp be-uprice" value="{{ r.unit_price }}"></td>
+              <td><input type="text" class="be-inp be-cprice" value="{{ r.cost_price }}"></td>
+              <td><input type="text" class="be-inp be-reorder" value="{{ r.reorder_level }}"></td>
+              <td><input type="text" class="be-inp be-stock" value="{{ r.current_stock }}"></td>
+              <td><select class="be-sel be-unit">{% for u in units %}<option value="{{ u.abbreviation }}" {% if r.unit == u.abbreviation %}selected{% endif %}>{{ u.abbreviation }}</option>{% endfor %}</select></td>
+              <td><button type="button" class="be-del" onclick="delRow(this)" title="Remove">&times;</button></td>
+            </tr>
+            {% else %}
+            <tr>
+              <td style="text-align:center;color:#94a3b8;font-size:11px;" class="be-idx">1</td>
+              <td><input type="text" class="be-inp be-sku" placeholder="SKU" style="text-transform:uppercase"><div class="be-msg"></div></td>
+              <td><input type="text" class="be-inp be-name" placeholder="Product name"><div class="be-msg"></div></td>
+              <td><input type="text" class="be-inp be-desc" placeholder="Optional"></td>
+              <td><input type="text" class="be-inp be-cat" placeholder="Cat. name"></td>
+              <td><input type="text" class="be-inp be-uprice" placeholder="0"></td>
+              <td><input type="text" class="be-inp be-cprice" placeholder="0"></td>
+              <td><input type="text" class="be-inp be-reorder" placeholder="0"></td>
+              <td><input type="text" class="be-inp be-stock" placeholder="0"></td>
+              <td><select class="be-sel be-unit">{% for u in units %}<option value="{{ u.abbreviation }}">{{ u.abbreviation }}</option>{% endfor %}</select></td>
+              <td><button type="button" class="be-del" onclick="delRow(this)" title="Remove">&times;</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="be-actions">
+        <button type="button" class="be-add" onclick="addRow()">+ Add Row</button>
+        <button type="button" class="be-add" onclick="openUnitModal()" style="border-color:#7c3aed;color:#7c3aed;">+ New Unit</button>
+        <button type="submit" class="btn btn-primary" onclick="return collectData()">Save All</button>
+        <a href="{{ url_for('inv_products.list_products') }}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="unitModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:8px;padding:24px;width:440px;max-width:94vw;box-shadow:0 8px 32px rgba(0,0,0,.18);">
+    <h3 style="margin:0 0 16px;font-size:17px;">New Unit</h3>
+    <div class="form-group">
+      <label>Name *</label>
+      <input type="text" id="unitName" class="form-control focus-ring" style="border:1px solid #d8d3c4;">
+      <div id="unitNameMsg" style="font-size:11px;margin-top:2px;"></div>
+    </div>
+    <div class="form-group">
+      <label>Abbreviation *</label>
+      <input type="text" id="unitAbbr" class="form-control focus-ring" maxlength="20" style="border:1px solid #d8d3c4;">
+      <div id="unitAbbrMsg" style="font-size:11px;margin-top:2px;"></div>
+    </div>
+    <div class="form-group">
+      <label>Explanation</label>
+      <textarea id="unitExpl" class="form-control focus-ring" rows="2" style="border:1px solid #d8d3c4;"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button type="button" class="btn btn-outline" onclick="closeUnitModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" id="unitSaveBtn" onclick="saveUnit()">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var CHECK_URL = '{{ url_for("inv_products.check_duplicate") }}';
+var UNIT_CHECK_URL = '{{ url_for("inv_units.check_duplicate") }}';
+var UNIT_CREATE_URL = '{{ url_for("inv_units.quick_create") }}';
+var timers = {};
+var unitTimers = {};
+
+function checkField(inp, msgEl) {
+  var val = inp.value.trim();
+  var field = inp.classList.contains('be-sku') ? 'sku' : 'name';
+  inp.classList.remove('err', 'ok');
+  msgEl.className = 'be-msg';
+  msgEl.textContent = '';
+  if (!val) return;
+
+  var url = CHECK_URL + '?field=' + encodeURIComponent(field) + '&value=' + encodeURIComponent(val);
+  fetch(url, { credentials: 'same-origin' })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(d){
+      if (d.exists) {
+        inp.classList.add('err');
+        msgEl.className = 'be-msg err';
+        msgEl.textContent = 'Already taken';
+      } else {
+        inp.classList.add('ok');
+        msgEl.className = 'be-msg ok';
+        msgEl.textContent = 'Available';
+      }
+    })
+    .catch(function(e){ console.warn('Check failed:', e); });
+}
+
+function debounceCheck(inp, msgEl) {
+  var key = inp === msgEl ? inp.name : (inp.className + '_' + Math.random());
+  clearTimeout(timers[key]);
+  timers[key] = setTimeout(function(){ checkField(inp, msgEl); }, 400);
+}
+
+function wireRow(tr) {
+  var names = tr.querySelectorAll('.be-sku, .be-name');
+  names.forEach(function(inp){
+    var msgEl = inp.parentElement.querySelector('.be-msg');
+    if (!msgEl) return;
+    inp.addEventListener('input', function(){ debounceCheck(inp, msgEl); });
+  });
+}
+
+function addRow() {
+  var tbody = document.getElementById('beBody');
+  var tr = document.createElement('tr');
+  var unitOpts = '';
+  var sel = document.querySelector('.be-unit');
+  if (sel) { for (var i = 0; i < sel.options.length; i++) { unitOpts += '<option value="' + sel.options[i].value + '">' + sel.options[i].text + '</option>'; } }
+  tr.innerHTML =
+    '<td style="text-align:center;color:#94a3b8;font-size:11px;" class="be-idx">' + (tbody.children.length + 1) + '</td>' +
+    '<td><input type="text" class="be-inp be-sku" placeholder="SKU" style="text-transform:uppercase"><div class="be-msg"></div></td>' +
+    '<td><input type="text" class="be-inp be-name" placeholder="Product name"><div class="be-msg"></div></td>' +
+    '<td><input type="text" class="be-inp be-desc" placeholder="Optional"></td>' +
+    '<td><input type="text" class="be-inp be-cat" placeholder="Cat. name"></td>' +
+    '<td><input type="text" class="be-inp be-uprice" placeholder="0"></td>' +
+    '<td><input type="text" class="be-inp be-cprice" placeholder="0"></td>' +
+    '<td><input type="text" class="be-inp be-reorder" placeholder="0"></td>' +
+    '<td><input type="text" class="be-inp be-stock" placeholder="0"></td>' +
+    '<td><select class="be-sel be-unit">' + unitOpts + '</select></td>' +
+    '<td><button type="button" class="be-del" onclick="delRow(this)" title="Remove">&times;</button></td>';
+  tbody.appendChild(tr);
+  wireRow(tr);
+  reindex();
+}
+
+function delRow(btn) {
+  var tr = btn.closest('tr');
+  tr.parentNode.removeChild(tr);
+  reindex();
+}
+
+function reindex() {
+  var idxs = document.querySelectorAll('.be-idx');
+  for (var i = 0; i < idxs.length; i++) idxs[i].textContent = i + 1;
+}
+
+function collectData() {
+  var rows = [];
+  var err = false;
+  var skus = {};
+  var names = {};
+  var msgs = [];
+
+  var tbody = document.getElementById('beBody');
+  for (var i = 0; i < tbody.children.length; i++) {
+    var tr = tbody.children[i];
+    var skuInp = tr.querySelector('.be-sku');
+    var nameInp = tr.querySelector('.be-name');
+    var descInp = tr.querySelector('.be-desc');
+    var catInp = tr.querySelector('.be-cat');
+    var upriceInp = tr.querySelector('.be-uprice');
+    var cpriceInp = tr.querySelector('.be-cprice');
+    var reorderInp = tr.querySelector('.be-reorder');
+    var stockInp = tr.querySelector('.be-stock');
+    var unitSel = tr.querySelector('.be-unit');
+
+    var sku = skuInp.value.trim().toUpperCase();
+    var name = nameInp.value.trim();
+    var desc = descInp.value.trim();
+    var cat = catInp.value.trim();
+    var uprice = upriceInp.value.trim();
+    var cprice = cpriceInp.value.trim();
+    var reorder = reorderInp.value.trim();
+    var stock = stockInp.value.trim();
+    var unit = unitSel ? unitSel.value : 'pcs';
+
+    skuInp.classList.remove('err');
+    nameInp.classList.remove('err');
+
+    if (!sku && !name) continue;
+    if (!sku) { skuInp.classList.add('err'); err = true; msgs.push('Row ' + (i+1) + ': SKU required'); }
+    if (!name) { nameInp.classList.add('err'); err = true; msgs.push('Row ' + (i+1) + ': Name required'); }
+
+    if (sku && skus[sku]) { skuInp.classList.add('err'); err = true; msgs.push('Row ' + (i+1) + ': Duplicate SKU "' + sku + '"'); }
+    if (name && names[name]) { nameInp.classList.add('err'); err = true; msgs.push('Row ' + (i+1) + ': Duplicate name "' + name + '"'); }
+
+    if (skuInp.classList.contains('err')) err = true;
+    if (nameInp.classList.contains('err')) err = true;
+
+    skus[sku] = true;
+    names[name] = true;
+
+    rows.push({
+      sku: sku,
+      name: name,
+      description: desc,
+      category_name: cat,
+      unit_price: uprice || '0',
+      cost_price: cprice || '0',
+      reorder_level: reorder || '0',
+      current_stock: stock || '0',
+      unit: unit,
+    });
+  }
+
+  if (err) {
+    alert('Please fix the highlighted errors.\n' + msgs.join('\n'));
+    return false;
+  }
+
+  document.getElementById('dataInput').value = JSON.stringify(rows);
+  return true;
+}
+
+function refreshUnitSelects(newVal, newText) {
+  var sels = document.querySelectorAll('.be-unit');
+  for (var i = 0; i < sels.length; i++) {
+    var opt = document.createElement('option');
+    opt.value = newVal;
+    opt.textContent = newText;
+    sels[i].appendChild(opt);
+  }
+}
+
+// ---- Unit modal ----
+function openUnitModal() {
+  document.getElementById('unitModal').style.display = 'flex';
+  document.getElementById('unitName').value = '';
+  document.getElementById('unitAbbr').value = '';
+  document.getElementById('unitExpl').value = '';
+  clearUnitMsgs();
+}
+
+function closeUnitModal() {
+  document.getElementById('unitModal').style.display = 'none';
+  clearUnitMsgs();
+}
+
+function clearUnitMsgs() {
+  var els = document.querySelectorAll('#unitNameMsg, #unitAbbrMsg');
+  for (var i = 0; i < els.length; i++) { els[i].textContent = ''; els[i].className = ''; }
+  document.getElementById('unitName').style.borderColor = '#d8d3c4';
+  document.getElementById('unitAbbr').style.borderColor = '#d8d3c4';
+}
+
+function checkUnitField(field, value, msgEl, inp) {
+  if (!value) { msgEl.textContent = ''; msgEl.className = ''; inp.style.borderColor = '#d8d3c4'; return; }
+  var url = UNIT_CHECK_URL + '?field=' + encodeURIComponent(field) + '&value=' + encodeURIComponent(value);
+  fetch(url, { credentials: 'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.exists) {
+        inp.style.borderColor = '#dc2626';
+        msgEl.className = 'dup-check err';
+        msgEl.textContent = 'Already taken';
+      } else {
+        inp.style.borderColor = '#16a34a';
+        msgEl.className = 'dup-check ok';
+        msgEl.textContent = 'Available';
+      }
+    });
+}
+
+function debounceUnit(field, msgId, inpId) {
+  var key = field;
+  clearTimeout(unitTimers[key]);
+  var inp = document.getElementById(inpId);
+  var msgEl = document.getElementById(msgId);
+  var val = inp.value.trim();
+  inp.style.borderColor = '#d8d3c4';
+  msgEl.textContent = 'Checking...';
+  msgEl.className = '';
+  if (!val) { msgEl.textContent = ''; return; }
+  unitTimers[key] = setTimeout(function(){ checkUnitField(field, val, msgEl, inp); }, 400);
+}
+
+document.getElementById('unitName').addEventListener('input', function(){ debounceUnit('name', 'unitNameMsg', 'unitName'); });
+document.getElementById('unitAbbr').addEventListener('input', function(){ debounceUnit('abbreviation', 'unitAbbrMsg', 'unitAbbr'); });
+
+function saveUnit() {
+  var name = document.getElementById('unitName').value.trim();
+  var abbr = document.getElementById('unitAbbr').value.trim();
+  var expl = document.getElementById('unitExpl').value.trim();
+  var btn = document.getElementById('unitSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  var fd = new FormData();
+  fd.append('name', name);
+  fd.append('abbreviation', abbr);
+  fd.append('explanation', expl);
+
+  fetch(UNIT_CREATE_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      btn.disabled = false;
+      btn.textContent = 'Create';
+      if (d.ok) {
+        refreshUnitSelects(d.abbreviation, d.abbreviation);
+        closeUnitModal();
+      } else {
+        alert(d.error || 'Failed to create unit.');
+      }
+    })
+    .catch(function(e){
+      btn.disabled = false;
+      btn.textContent = 'Create';
+      alert('Error: ' + e.message);
+    });
+}
+
+// Wire existing rows
+document.querySelectorAll('#beBody tr').forEach(function(tr){ wireRow(tr); });
+</script>
+{% endblock %}

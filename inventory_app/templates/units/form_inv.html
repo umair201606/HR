@@ -1,0 +1,114 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}{{ 'Edit' if unit else 'New' }} Unit{% endblock %}
+{% block page_title %}{{ 'Edit' if unit else 'New' }} Unit{% endblock %}
+{% block extra_css %}
+<style>
+  .field-wrap{position:relative}
+  .field-err{font-size:11.5px;color:#dc2626;margin-top:3px;display:none}
+  .field-err.show{display:block}
+  .field-ok{font-size:11.5px;color:#16a34a;margin-top:3px;display:none}
+  .field-ok.show{display:block}
+  .field-wrap .form-control.err{border-color:#dc2626;background:#fef2f2}
+  .field-wrap .form-control.ok{border-color:#16a34a;background:#f0fdf4}
+</style>
+{% endblock %}
+{% block content %}
+<div class="card" style="max-width:600px;">
+  <form method="POST" class="form">
+    <div class="form-group">
+      <div class="field-wrap">
+        <label>Name *</label>
+        <input type="text" name="name" id="fieldName" class="form-control focus-ring" required
+               value="{{ unit.name if unit else name }}" data-exclude="{{ unit.id if unit else '' }}">
+        <div class="field-err" id="nameErr"></div>
+        <div class="field-ok" id="nameOk">Name is available</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="field-wrap">
+        <label>Abbreviation *</label>
+        <input type="text" name="abbreviation" id="fieldAbbr" class="form-control focus-ring" required
+               value="{{ unit.abbreviation if unit else abbreviation }}" maxlength="20"
+               placeholder="e.g. kg, pcs, m" data-exclude="{{ unit.id if unit else '' }}">
+        <div class="field-err" id="abbrErr"></div>
+        <div class="field-ok" id="abbrOk">Abbreviation is available</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Explanation</label>
+      <textarea name="explanation" class="form-control focus-ring" rows="3"
+                placeholder="Optional description of the unit">{{ unit.explanation if unit else explanation }}</textarea>
+    </div>
+    {% if unit %}
+    <div class="form-group">
+      <label><input type="checkbox" name="is_active" {% if unit.is_active %}checked{% endif %}> Active</label>
+    </div>
+    {% endif %}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary" id="submitBtn">{{ 'Update' if unit else 'Create' }}</button>
+      <a href="{{ url_for('inv_units.list_units') }}" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function(){
+  var nameInp = document.getElementById('fieldName');
+  var abbrInp = document.getElementById('fieldAbbr');
+  var nameErr = document.getElementById('nameErr');
+  var nameOk = document.getElementById('nameOk');
+  var abbrErr = document.getElementById('abbrErr');
+  var abbrOk = document.getElementById('abbrOk');
+
+  if (!nameInp || !abbrInp) return;
+
+  function check(field, inp, errEl, okEl) {
+    var val = inp.value.trim();
+    var exclude = inp.getAttribute('data-exclude') || '';
+
+    errEl.classList.remove('show');
+    okEl.classList.remove('show');
+    inp.classList.remove('err', 'ok');
+
+    if (!val) return;
+
+    var url = '{{ url_for("inv_units.check_duplicate") }}?field=' + encodeURIComponent(field) + '&value=' + encodeURIComponent(val);
+    if (exclude) url += '&exclude=' + encodeURIComponent(exclude);
+
+    fetch(url, { credentials: 'same-origin' })
+      .then(function(r){
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(d){
+        if (d.exists) {
+          errEl.textContent = 'This ' + field + ' is already taken.';
+          errEl.classList.add('show');
+          inp.classList.add('err');
+          inp.classList.remove('ok');
+        } else {
+          okEl.classList.add('show');
+          inp.classList.add('ok');
+          inp.classList.remove('err');
+        }
+      })
+      .catch(function(e){
+        console.warn('Unit check failed:', e);
+      });
+  }
+
+  var timers = {};
+  function debounceCheck(field, inp, errEl, okEl) {
+    var key = field;
+    clearTimeout(timers[key]);
+    timers[key] = setTimeout(function(){ check(field, inp, errEl, okEl); }, 400);
+  }
+
+  nameInp.addEventListener('input', function(){ debounceCheck('name', nameInp, nameErr, nameOk); });
+  abbrInp.addEventListener('input', function(){ debounceCheck('abbreviation', abbrInp, abbrErr, abbrOk); });
+
+  if (nameInp.value.trim()) check('name', nameInp, nameErr, nameOk);
+  if (abbrInp.value.trim()) check('abbreviation', abbrInp, abbrErr, abbrOk);
+})();
+</script>
+{% endblock %}

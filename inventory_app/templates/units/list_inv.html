@@ -1,0 +1,38 @@
+{% extends "layouts/base_inv.html" %}
+{% block title %}Units{% endblock %}
+{% block page_title %}Units{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="{{ url_for('inv_units.create_unit') }}" class="btn btn-primary">+ New Unit</a>
+    <a href="{{ url_for('inv_units.download_template') }}" class="btn btn-outline btn-sm">Download Template</a>
+    <form method="POST" action="{{ url_for('inv_units.upload_excel') }}" enctype="multipart/form-data" style="display:flex;gap:6px;align-items:center;">
+      <input type="file" name="file" accept=".xlsx,.xls" required class="form-control" style="width:auto;padding:4px 8px;font-size:12px;">
+      <button type="submit" class="btn btn-outline btn-sm">Import Excel</button>
+    </form>
+  </div>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>Name</th><th>Abbreviation</th><th>Explanation</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for u in units %}
+        <tr class="{% if not u.is_active %}inactive-row{% endif %}">
+          <td>{{ u.name }}</td>
+          <td><strong>{{ u.abbreviation }}</strong></td>
+          <td>{{ u.explanation or '-' }}</td>
+          <td><span class="badge {% if u.is_active %}badge-success{% else %}badge-secondary{% endif %}">{{ 'Active' if u.is_active else 'Inactive' }}</span></td>
+          <td class="actions">
+            <a href="{{ url_for('inv_units.edit_unit', id=u.id) }}" class="btn btn-sm btn-outline">Edit</a>
+            <a href="{{ url_for('inv_units.delete_unit', id=u.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete unit {{ u.name }}?')">Delete</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">No units. Click <strong>+ New Unit</strong> to add one or <strong>Import Excel</strong> to batch upload.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

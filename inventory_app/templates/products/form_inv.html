@@ -1,23 +1,42 @@
 {% extends "layouts/base_inv.html" %}
 {% block title %}{{ 'Edit' if product else 'New' }} Product{% endblock %}
 {% block page_title %}{{ 'Edit' if product else 'New' }} Product{% endblock %}
+{% block extra_css %}
+<style>
+  .dup-check{font-size:11px;margin-top:2px;min-height:16px}
+  .dup-check.ok{color:#16a34a}
+  .dup-check.err{color:#dc2626}
+  .dup-check.wait{color:#64748b}
+  .dup-inp.ok{border-color:#16a34a!important;background:#f0fdf4}
+  .dup-inp.err{border-color:#dc2626!important;background:#fef2f2}
+</style>
+{% endblock %}
 {% block content %}
 <div class="card" style="max-width:700px;">
   <form method="POST" class="form">
     <div class="form-row">
       <div class="form-group">
         <label>SKU *</label>
-        <input type="text" name="sku" class="form-control focus-ring" required value="{{ product.sku if product else '' }}">
+        <input type="text" name="sku" id="sku" class="form-control focus-ring dup-inp" required value="{{ product.sku if product else '' }}">
+        <div class="dup-check" id="skuCheck"></div>
       </div>
       <div class="form-group">
         <label>Unit</label>
-        <input type="text" name="unit" class="form-control focus-ring" value="{{ product.unit if product else 'pcs' }}">
+        <div style="display:flex;gap:6px;">
+          <select name="unit" class="form-control focus-ring" style="flex:1;">
+            {% for u in units %}
+            <option value="{{ u.abbreviation }}" {% if product and product.unit == u.abbreviation %}selected{% endif %}>{{ u.name }} ({{ u.abbreviation }})</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn btn-outline btn-sm" onclick="openUnitModal()" style="white-space:nowrap;" title="Add new unit">+ Unit</button>
+        </div>
       </div>
     </div>
     <div class="form-group">
       <label>Name *</label>
-      <input type="text" name="name" class="form-control focus-ring" required value="{{ product.name if product else '' }}">
+      <input type="text" name="name" id="name" class="form-control focus-ring dup-inp" required value="{{ product.name if product else '' }}">
       <small style="display:block;margin-top:4px;color:#7c3aed;font-weight:500;">&#9432; This name will appear in ledgers — a 4th-level ledger account is created automatically under Inventory.</small>
+      <div class="dup-check" id="nameCheck"></div>
     </div>
     <div class="form-group">
       <label>Description</label>
@@ -58,9 +77,178 @@
     </div>
     {% endif %}
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary">{{ 'Update' if product else 'Create' }}</button>
+      <button type="submit" class="btn btn-primary" onclick="return checkDupBeforeSubmit()">{{ 'Update' if product else 'Create' }}</button>
       <a href="{{ url_for('inv_products.list_products') }}" class="btn btn-outline">Cancel</a>
     </div>
   </form>
 </div>
+
+<div id="unitModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:8px;padding:24px;width:440px;max-width:94vw;box-shadow:0 8px 32px rgba(0,0,0,.18);">
+    <h3 style="margin:0 0 16px;font-size:17px;">New Unit</h3>
+    <div class="form-group">
+      <label>Name *</label>
+      <input type="text" id="unitName" class="form-control focus-ring" style="border:1px solid #d8d3c4;">
+      <div id="unitNameMsg" style="font-size:11px;margin-top:2px;"></div>
+    </div>
+    <div class="form-group">
+      <label>Abbreviation *</label>
+      <input type="text" id="unitAbbr" class="form-control focus-ring" maxlength="20" style="border:1px solid #d8d3c4;">
+      <div id="unitAbbrMsg" style="font-size:11px;margin-top:2px;"></div>
+    </div>
+    <div class="form-group">
+      <label>Explanation</label>
+      <textarea id="unitExpl" class="form-control focus-ring" rows="2" style="border:1px solid #d8d3c4;"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button type="button" class="btn btn-outline" onclick="closeUnitModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" id="unitSaveBtn" onclick="saveUnit()">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var CHECK_URL = '{{ url_for("inv_products.check_duplicate") }}';
+var UNIT_CHECK_URL = '{{ url_for("inv_units.check_duplicate") }}';
+var UNIT_CREATE_URL = '{{ url_for("inv_units.quick_create") }}';
+var dupTimers = {};
+var EXCLUDE = {{ product.id if product else 'null' }};
+var unitTimers = {};
+
+function checkField(field, value, msgEl, inp) {
+  if (!value) { msgEl.textContent = ''; msgEl.className = 'dup-check'; inp.className = 'form-control focus-ring dup-inp'; return; }
+  var url = CHECK_URL + '?field=' + encodeURIComponent(field) + '&value=' + encodeURIComponent(value);
+  if (EXCLUDE) url += '&exclude=' + EXCLUDE;
+  fetch(url, { credentials: 'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      inp.className = 'form-control focus-ring dup-inp';
+      if (d.exists) {
+        inp.classList.add('err');
+        msgEl.className = 'dup-check err';
+        msgEl.textContent = 'Already taken';
+      } else {
+        inp.classList.add('ok');
+        msgEl.className = 'dup-check ok';
+        msgEl.textContent = 'Available';
+      }
+    })
+    .catch(function(e){ console.warn('Dup check err:', e); });
+}
+
+function debounce(field, msgId) {
+  clearTimeout(dupTimers[field]);
+  var inp = document.getElementById(field);
+  var msgEl = document.getElementById(msgId);
+  var val = inp.value.trim();
+  inp.className = 'form-control focus-ring dup-inp';
+  msgEl.className = 'dup-check wait';
+  msgEl.textContent = 'Checking...';
+  if (!val) { msgEl.textContent = ''; msgEl.className = 'dup-check'; return; }
+  dupTimers[field] = setTimeout(function(){ checkField(field, val, msgEl, inp); }, 400);
+}
+
+document.getElementById('sku').addEventListener('input', function(){ debounce('sku', 'skuCheck'); });
+document.getElementById('name').addEventListener('input', function(){ debounce('name', 'nameCheck'); });
+
+function checkDupBeforeSubmit() {
+  var sku = document.getElementById('sku');
+  var name = document.getElementById('name');
+  if (sku.classList.contains('err')) { alert('SKU "' + sku.value.trim() + '" is already taken.'); return false; }
+  if (name.classList.contains('err')) { alert('Name "' + name.value.trim() + '" is already taken.'); return false; }
+  return true;
+}
+
+// ---- Unit modal ----
+function openUnitModal() {
+  document.getElementById('unitModal').style.display = 'flex';
+  document.getElementById('unitName').value = '';
+  document.getElementById('unitAbbr').value = '';
+  document.getElementById('unitExpl').value = '';
+  clearUnitMsgs();
+}
+
+function closeUnitModal() {
+  document.getElementById('unitModal').style.display = 'none';
+  clearUnitMsgs();
+}
+
+function clearUnitMsgs() {
+  var els = document.querySelectorAll('#unitNameMsg, #unitAbbrMsg');
+  for (var i = 0; i < els.length; i++) { els[i].textContent = ''; els[i].className = ''; }
+  document.getElementById('unitName').style.borderColor = '#d8d3c4';
+  document.getElementById('unitAbbr').style.borderColor = '#d8d3c4';
+}
+
+function checkUnitField(field, value, msgEl, inp) {
+  if (!value) { msgEl.textContent = ''; msgEl.className = ''; inp.style.borderColor = '#d8d3c4'; return; }
+  var url = UNIT_CHECK_URL + '?field=' + encodeURIComponent(field) + '&value=' + encodeURIComponent(value);
+  fetch(url, { credentials: 'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.exists) {
+        inp.style.borderColor = '#dc2626';
+        msgEl.className = 'dup-check err';
+        msgEl.textContent = 'Already taken';
+      } else {
+        inp.style.borderColor = '#16a34a';
+        msgEl.className = 'dup-check ok';
+        msgEl.textContent = 'Available';
+      }
+    });
+}
+
+function debounceUnit(field, msgId, inpId) {
+  var key = field;
+  clearTimeout(unitTimers[key]);
+  var inp = document.getElementById(inpId);
+  var msgEl = document.getElementById(msgId);
+  var val = inp.value.trim();
+  inp.style.borderColor = '#d8d3c4';
+  msgEl.textContent = 'Checking...';
+  msgEl.className = '';
+  if (!val) { msgEl.textContent = ''; return; }
+  unitTimers[key] = setTimeout(function(){ checkUnitField(field, val, msgEl, inp); }, 400);
+}
+
+document.getElementById('unitName').addEventListener('input', function(){ debounceUnit('name', 'unitNameMsg', 'unitName'); });
+document.getElementById('unitAbbr').addEventListener('input', function(){ debounceUnit('abbreviation', 'unitAbbrMsg', 'unitAbbr'); });
+
+function saveUnit() {
+  var name = document.getElementById('unitName').value.trim();
+  var abbr = document.getElementById('unitAbbr').value.trim();
+  var expl = document.getElementById('unitExpl').value.trim();
+  var btn = document.getElementById('unitSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  var fd = new FormData();
+  fd.append('name', name);
+  fd.append('abbreviation', abbr);
+  fd.append('explanation', expl);
+
+  fetch(UNIT_CREATE_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      btn.disabled = false;
+      btn.textContent = 'Create';
+      if (d.ok) {
+        var sel = document.querySelector('select[name="unit"]');
+        var opt = document.createElement('option');
+        opt.value = d.abbreviation;
+        opt.textContent = d.name + ' (' + d.abbreviation + ')';
+        opt.selected = true;
+        sel.appendChild(opt);
+        closeUnitModal();
+      } else {
+        alert(d.error || 'Failed to create unit.');
+      }
+    })
+    .catch(function(e){
+      btn.disabled = false;
+      btn.textContent = 'Create';
+      alert('Error: ' + e.message);
+    });
+}
+</script>
 {% endblock %}
