@@ -28,6 +28,7 @@ def app():
     import shared.models.ledger  # noqa: F401  (chart_of_accounts: FK target)
     import shared.models.stock_ledger  # noqa: F401
     import shared.models.stock_layer  # noqa: F401
+    import shared.models.company_settings  # noqa: F401  (accounting_periods)
     import inventory_app.models.product  # noqa: F401
 
     with application.app_context():

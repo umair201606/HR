@@ -66,12 +66,19 @@ def post_journal_entry(voucher_type, voucher_id, voucher_number, description,
                 f"Cannot post to aggregating account {acct.code} {acct.name} "
                 f"(level {acct.level}); post to a level-5 operational account."
             )
+    # A closed period's figures are final — see shared/periods.py. Checked
+    # after the balance/postability checks so a malformed entry still reports
+    # the more specific problem first.
+    from shared.periods import require_open_period
+    entry_date = entry_date or datetime.utcnow()
+    require_open_period(entry_date, action=f"post {voucher_number} into")
+
     je = JournalEntry(
         voucher_type=voucher_type,
         voucher_id=voucher_id,
         voucher_number=voucher_number,
         description=description,
-        entry_date=entry_date or datetime.utcnow(),
+        entry_date=entry_date,
         created_by=created_by
     )
     db.session.add(je)
@@ -106,9 +113,17 @@ def reverse_journal_entry(voucher_type, voucher_id, created_by=1):
     ``created_by`` is accepted for call-site compatibility; it is unused now
     that no new entry is created.
     """
+    from shared.periods import require_open_period
     entries = JournalEntry.query.filter_by(
         voucher_type=voucher_type, voucher_id=voucher_id, is_posted=True
     ).all()
+    # Un-posting rewrites the period the entry SITS IN, not today's: flipping
+    # is_posted removes it from every balance query retroactively. If that
+    # period is closed, its figures are final and this is exactly the edit the
+    # close exists to prevent.
+    for entry in entries:
+        require_open_period(entry.entry_date,
+                            action=f"un-post {entry.voucher_number} from")
     for entry in entries:
         entry.is_posted = False
     db.session.flush()

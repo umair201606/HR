@@ -154,9 +154,11 @@ a:hover{{background:#1d4ed8}}
         return _friendly_error_page(e.code, e.name, msg), e.code
 
     from shared.costing import NegativeStockError, ConsumedLayerError
+    from shared.periods import ClosedPeriodError
 
     @app.errorhandler(NegativeStockError)
     @app.errorhandler(ConsumedLayerError)
+    @app.errorhandler(ClosedPeriodError)
     def handle_costing_refusal(e):
         # Not a crash: the costing engine refused an operation that would have
         # posted a cost it cannot back. Every stock-moving route can raise
