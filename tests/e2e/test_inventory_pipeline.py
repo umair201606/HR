@@ -6,7 +6,7 @@ BASE_URL = "http://localhost:5000"
 
 class TestInvLogin:
     def test_login_page_loads(self, login_page):
-        assert login_page.locator("#email").is_visible()
+        assert login_page.locator("#login").is_visible()
         assert login_page.locator("#password").is_visible()
 
     def test_login_success(self, admin_page):
