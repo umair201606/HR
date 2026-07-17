@@ -1,4 +1,6 @@
 def register_invoicing_blueprints(app):
+    # Invoicing/inventory settings moved to the unified settings module
+    # (shared/routes/settings.py).
     from .routes.dashboard import invoicing_bp
     from .routes.suppliers import inv_sup_bp
     from .routes.customers import inv_cust_bp
@@ -7,10 +9,8 @@ def register_invoicing_blueprints(app):
     from .routes.invoices import inv_inv_bp
     from .routes.purchase_invoice import inv_pinv_bp
     from .routes.purchase_return import inv_preturn_bp
-    from .routes.settings import inv_settings_bp
 
     app.register_blueprint(invoicing_bp)
-    app.register_blueprint(inv_settings_bp)
     app.register_blueprint(inv_sup_bp)
     app.register_blueprint(inv_cust_bp)
     app.register_blueprint(inv_pur_bp)

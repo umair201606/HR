@@ -1,0 +1,89 @@
+{% extends "layouts/app_shell.html" %}
+{% set module_key = "settings" %}
+{% block title %}Settings - Solarkon ERP{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block extra_css %}
+<style>
+  .set-wrap { display: grid; grid-template-columns: 220px 1fr; gap: 20px; align-items: start; }
+  .set-rail { background: #fff; border: 1px solid var(--line); border-radius: 10px;
+              overflow: hidden; position: sticky; top: 16px; }
+  .set-rail a { display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+                font-size: 13px; color: var(--ink); text-decoration: none;
+                border-left: 3px solid transparent; }
+  .set-rail a:hover { background: #f8fafc; }
+  .set-rail a.active { background: #f0fdfa; border-left-color: var(--ledger);
+                       color: var(--ledger); font-weight: 600; }
+  .set-card { background: #fff; border: 1px solid var(--line); border-radius: 10px;
+              padding: 20px 22px; }
+  .set-card h3 { margin: 0 0 4px; font-size: 17px; }
+  .set-card .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 18px; }
+  .fgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .fgroup { margin-bottom: 14px; min-width: 0; }
+  .fgroup label.lbl { display: block; font-size: 10.5px; font-weight: 700; color: var(--muted);
+                      text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+  .inp, .sel { width: 100%; max-width: 100%; padding: 8px 10px; font: inherit; font-size: 13px;
+               border: 1px solid var(--line); border-radius: 6px; background: #fff; outline: none; }
+  .inp:focus, .sel:focus { border-color: var(--ledger); box-shadow: 0 0 0 3px rgba(15,82,87,.12); }
+  .help { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+  .radio-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .radio-card { flex: 1; min-width: 190px; border: 1px solid var(--line); border-radius: 8px;
+                padding: 10px 12px; cursor: pointer; font-size: 13px; }
+  .radio-card:hover { border-color: var(--ledger); }
+  .radio-card input { margin-right: 7px; }
+  .radio-card.sel-on { border-color: var(--ledger); background: #f0fdfa; }
+  .radio-card .rc-h { font-weight: 600; }
+  .radio-card .rc-d { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .set-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .stbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .stbl th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px;
+             color: var(--muted); padding: 8px 10px; border-bottom: 2px solid var(--line); }
+  .stbl td { padding: 8px 10px; border-bottom: 1px solid #eef1f0; }
+  .tbl-scroll { overflow-x: auto; }
+  .pill { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .pill-on { background: #dcfce7; color: #166534; }
+  .pill-off { background: #f1f5f9; color: #64748b; }
+  /* The rail becomes a horizontal strip on small screens instead of a
+     220px column that would squeeze the forms off-screen. */
+  @media (max-width: 900px) {
+    .set-wrap { grid-template-columns: 1fr; }
+    .set-rail { position: static; display: flex; overflow-x: auto; }
+    .set-rail a { border-left: none; border-bottom: 3px solid transparent; white-space: nowrap; }
+    .set-rail a.active { border-left: none; border-bottom-color: var(--ledger); }
+    .fgrid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="set-wrap">
+  <nav class="set-rail">
+    {% for s in sections %}
+    <a href="{{ url_for('settings.index', tab=s.key) }}" class="{{ 'active' if tab == s.key }}">
+      <span>{{ s.icon|safe }}</span><span>{{ s.label }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  <div>
+    {% if tab == 'account' %}{% include "settings/_account.html" %}
+    {% elif tab == 'company' %}{% include "settings/_company.html" %}
+    {% elif tab == 'periods' %}{% include "settings/_periods.html" %}
+    {% elif tab == 'reports' %}{% include "settings/_reports.html" %}
+    {% elif tab == 'inventory' %}{% include "settings/_inventory.html" %}
+    {% elif tab in ('purchase', 'sales') %}{% include "settings/_documents.html" %}
+    {% elif tab == 'rights' %}{% include "settings/_rights.html" %}
+    {% endif %}
+  </div>
+</div>
+<script>
+  // Reflect the checked radio on its card wrapper.
+  document.querySelectorAll('.radio-card input[type=radio]').forEach(function (r) {
+    var sync = function () {
+      document.querySelectorAll('input[name="' + r.name + '"]').forEach(function (o) {
+        o.closest('.radio-card').classList.toggle('sel-on', o.checked);
+      });
+    };
+    r.addEventListener('change', sync);
+    sync();
+  });
+</script>
+{% endblock %}

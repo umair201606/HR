@@ -1,0 +1,91 @@
+<div class="set-card">
+  <h3>Company Profile</h3>
+  <p class="hint">Appears on invoice, voucher and financial-report letterheads.</p>
+  <form method="POST" action="{{ url_for('settings.save_company') }}">
+    <div class="fgrid">
+      <div class="fgroup">
+        <label class="lbl">Company Name</label>
+        <input type="text" name="company_name" class="inp" value="{{ company.company_name or '' }}">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">Logo URL</label>
+        <input type="text" name="logo_url" class="inp" value="{{ company.logo_url or '' }}" placeholder="https://...">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">Phone</label>
+        <input type="text" name="phone" class="inp" value="{{ company.phone or '' }}">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">Email</label>
+        <input type="email" name="email" class="inp" value="{{ company.email or '' }}">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">Website</label>
+        <input type="text" name="website" class="inp" value="{{ company.website or '' }}">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">Tax ID / NTN</label>
+        <input type="text" name="tax_id" class="inp" value="{{ company.tax_id or '' }}">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">Registration Number</label>
+        <input type="text" name="registration_number" class="inp" value="{{ company.registration_number or '' }}">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">City</label>
+        <input type="text" name="city" class="inp" value="{{ company.city or '' }}">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">State / Province</label>
+        <input type="text" name="state" class="inp" value="{{ company.state or '' }}">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">Country</label>
+        <input type="text" name="country" class="inp" value="{{ company.country or 'Pakistan' }}">
+      </div>
+    </div>
+    <div class="fgroup">
+      <label class="lbl">Address</label>
+      <textarea name="address" class="inp" rows="2">{{ company.address or '' }}</textarea>
+    </div>
+
+    <div style="border-top:1px solid var(--line);margin:16px 0 14px;padding-top:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Locale &amp; Fiscal Year</div>
+      <div class="fgrid">
+        <div class="fgroup">
+          <label class="lbl">Currency Code</label>
+          <input type="text" name="currency" class="inp" value="{{ company.currency or 'PKR' }}">
+        </div>
+        <div class="fgroup">
+          <label class="lbl">Currency Symbol</label>
+          <input type="text" name="currency_symbol" class="inp" value="{{ company.currency_symbol or 'Rs.' }}">
+        </div>
+        <div class="fgroup">
+          <label class="lbl">Fiscal Year Starts</label>
+          <select name="fiscal_year_start_month" class="sel">
+            {% set months = ['January','February','March','April','May','June','July','August','September','October','November','December'] %}
+            {% for m in months %}
+            <option value="{{ loop.index }}" {{ 'selected' if company.fiscal_year_start_month == loop.index }}>{{ m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fgroup">
+          <label class="lbl">Date Format</label>
+          <select name="date_format" class="sel">
+            {% for f, lbl in [('Y-m-d','2026-07-17'), ('d/m/Y','17/07/2026'), ('m/d/Y','07/17/2026'), ('d-M-Y','17-Jul-2026')] %}
+            <option value="{{ f }}" {{ 'selected' if company.date_format == f }}>{{ lbl }} ({{ f }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fgroup">
+          <label class="lbl">Timezone</label>
+          <input type="text" name="timezone" class="inp" value="{{ company.timezone or 'Asia/Karachi' }}">
+        </div>
+      </div>
+    </div>
+
+    <div class="set-actions">
+      <button type="submit" class="btn btn-p">Save Company Profile</button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,63 @@
+<div class="set-card">
+  <h3>Rights &amp; Access</h3>
+  <p class="hint">HR creates users; here you decide which modules they reach and what they may do inside each section. A user with no rights row configured has unrestricted section access within the modules they can open.</p>
+
+  <div class="tbl-scroll">
+    <table class="stbl">
+      <thead>
+        <tr><th>User</th><th>Role</th><th>Module Access</th><th>Section Rights</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>
+            <div style="font-weight:600;">{{ u.full_name }}</div>
+            <div style="font-size:11px;color:var(--muted);">{{ u.login_id or u.email }}</div>
+          </td>
+          <td><span class="pill pill-off">{{ u.get_role_name()|title }}</span></td>
+          <td>
+            {% if u.is_admin() %}
+            <span class="pill pill-on">All (admin)</span>
+            {% else %}
+              {% set mods = [] %}
+              {% for key, label, flag, _s in modules %}{% if u[flag] %}{% set _ = mods.append(label) %}{% endif %}{% endfor %}
+              {% if mods %}
+                {% for m in mods %}<span class="pill" style="background:#dbeafe;color:#1d4ed8;margin-right:3px;">{{ m }}</span>{% endfor %}
+              {% else %}
+              <span style="font-size:12px;color:var(--muted);">None</span>
+              {% endif %}
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_admin() %}
+            <span style="font-size:12px;color:var(--muted);">Unrestricted</span>
+            {% elif u.id in configured %}
+            <span class="pill pill-on">Configured</span>
+            {% else %}
+            <span class="pill pill-off">Unrestricted</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}<span class="pill pill-on">Active</span>
+            {% else %}<span class="pill" style="background:#fee2e2;color:#b91c1c;">Inactive</span>{% endif %}
+          </td>
+          <td style="text-align:right;white-space:nowrap;">
+            <a href="{{ url_for('settings.user_rights', uid=u.id) }}" class="bsm">Edit Rights</a>
+            {% if u.id in configured %}
+            <form method="POST" action="{{ url_for('settings.reset_rights', uid=u.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Reset section rights for {{ u.full_name }}?');">
+              <button type="submit" class="bsm">Reset</button>
+            </form>
+            {% endif %}
+            {% if u.id != current_user.id %}
+            <form method="POST" action="{{ url_for('settings.toggle_active', uid=u.id) }}" style="display:inline;">
+              <button type="submit" class="bsm">{{ 'Deactivate' if u.is_active else 'Activate' }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

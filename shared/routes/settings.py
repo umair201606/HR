@@ -1,0 +1,408 @@
+"""The application's single settings module.
+
+Replaces three scattered surfaces (``admin_settings`` at /settings,
+``inv_settings`` at /invoicing/settings — which despite its URL edited
+InventorySettings — and ``finance_settings`` at /finance/settings).
+
+Access model: the page is open to every signed-in user, and each section
+appears only if that user has the matching module access. Because hiding a tab
+is not access control, every write handler re-checks the same predicate via
+``_require(section)``. This also closes holes in the old code, where any
+logged-in user could rewrite company info, the P&L layout, or close an
+accounting period.
+
+HR's own settings intentionally stay in the HR module
+(``compensation.tax_settings`` for income-tax slabs, ``auth.account_settings``
+for self-service profile).
+"""
+from datetime import date, datetime
+
+from flask import (Blueprint, render_template, request, redirect, url_for,
+                   flash, abort)
+from flask_login import login_required, current_user
+
+from shared.extensions import db
+from shared.models.base import User, UserPermission
+from shared.models.company_settings import (CompanyInfo, AccountingPeriod,
+                                            ReportSettings, PL_SECTIONS)
+from shared.models.inventory_settings import InventorySettings
+from shared.models.ledger import ChartOfAccount
+from shared.permissions import MODULES, ACTIONS
+
+settings_bp = Blueprint("settings", __name__, url_prefix="/settings")
+
+
+# ── Section registry ────────────────────────────────────────────────────────
+# key, label, icon, predicate(user). module_access() already returns True for
+# admins, so admins see every section.
+SECTIONS = [
+    ("account",   "My Account",        "&#128100;", lambda u: True),
+    ("company",   "Company Profile",   "&#127970;", lambda u: u.module_access("finance")),
+    ("periods",   "Financial Periods", "&#128197;", lambda u: u.module_access("finance")),
+    ("reports",   "Report Structure",  "&#128200;", lambda u: u.module_access("finance")),
+    ("inventory", "Inventory",         "&#128230;", lambda u: u.module_access("inventory")),
+    ("purchase",  "Purchase Invoices", "&#128228;", lambda u: u.module_access("invoicing")),
+    ("sales",     "Sales Invoices",    "&#128229;", lambda u: u.module_access("invoicing")),
+    ("rights",    "Rights & Access",   "&#128273;", lambda u: u.is_admin()),
+]
+_PREDICATE = {key: pred for key, _l, _i, pred in SECTIONS}
+
+
+def visible_sections(user):
+    return [{"key": k, "label": l, "icon": i}
+            for k, l, i, pred in SECTIONS if pred(user)]
+
+
+def _allowed(section):
+    pred = _PREDICATE.get(section)
+    return bool(pred and pred(current_user))
+
+
+def _require(section):
+    """Server-side gate for a write handler. Returns a response to return
+    early, or None when the user may proceed."""
+    if not _allowed(section):
+        flash("You don't have access to that setting.", "error")
+        return redirect(url_for("settings.index"))
+    return None
+
+
+def _postable_accounts():
+    return ChartOfAccount.query.filter(
+        ChartOfAccount.level >= ChartOfAccount.POSTING_LEVEL,
+        ChartOfAccount.is_active == True,
+    ).order_by(ChartOfAccount.code).all()
+
+
+@settings_bp.route("/")
+@login_required
+def index():
+    sections = visible_sections(current_user)
+    tab = request.args.get("tab") or (sections[0]["key"] if sections else "account")
+    if not _allowed(tab):
+        # Deep link to a section this user can't see: fall back rather than 403.
+        tab = sections[0]["key"] if sections else "account"
+
+    ctx = {
+        "tab": tab,
+        "sections": sections,
+        "module_key": "settings",
+    }
+    if tab == "company":
+        ctx["company"] = CompanyInfo.get()
+    elif tab == "periods":
+        ctx["periods"] = AccountingPeriod.query.order_by(
+            AccountingPeriod.start_date.desc()).all()
+    elif tab == "reports":
+        rs = ReportSettings.get()
+        ctx["report_settings"] = rs
+        ctx["pl_structure"] = rs.pl_structure()
+        ctx["pl_sections"] = PL_SECTIONS
+    elif tab == "inventory":
+        ctx["inv"] = InventorySettings.get()
+        ctx["accounts"] = _postable_accounts()
+    elif tab in ("purchase", "sales"):
+        ctx["report_settings"] = ReportSettings.get()
+    elif tab == "rights":
+        ctx["users"] = User.query.order_by(User.full_name).all()
+        ctx["modules"] = MODULES
+        ctx["configured"] = {uid for (uid,) in
+                             db.session.query(UserPermission.user_id).distinct()}
+    return render_template("settings/index.html", **ctx)
+
+
+# ── My Account (self-service, every user) ───────────────────────────────────
+
+@settings_bp.route("/account", methods=["POST"])
+@login_required
+def save_account():
+    full_name = request.form.get("full_name", "").strip()
+    email = request.form.get("email", "").strip().lower()
+    login_id = request.form.get("login_id", "").strip()
+    new_pw = request.form.get("new_password", "")
+    confirm = request.form.get("confirm_password", "")
+    back = redirect(url_for("settings.index", tab="account"))
+
+    if full_name:
+        current_user.full_name = full_name
+    if email and email != current_user.email:
+        if User.query.filter(User.email == email, User.id != current_user.id).first():
+            flash("That email is already in use.", "error")
+            return back
+        current_user.email = email
+    if login_id and login_id != current_user.login_id:
+        if User.query.filter(db.func.lower(User.login_id) == login_id.lower(),
+                             User.id != current_user.id).first():
+            flash("That User ID is already taken.", "error")
+            return back
+        current_user.login_id = login_id
+    if new_pw or confirm:
+        if len(new_pw) < 4:
+            flash("Password must be at least 4 characters.", "error")
+            return back
+        if new_pw != confirm:
+            flash("Passwords do not match — enter the new password twice.", "error")
+            return back
+        current_user.set_password(new_pw)
+    db.session.commit()
+    flash("Account updated.", "success")
+    return back
+
+
+# ── Company profile ─────────────────────────────────────────────────────────
+
+@settings_bp.route("/company", methods=["POST"])
+@login_required
+def save_company():
+    denied = _require("company")
+    if denied:
+        return denied
+    c = CompanyInfo.get()
+    c.company_name = request.form.get("company_name", c.company_name)
+    c.address = request.form.get("address", "")
+    c.city = request.form.get("city", "")
+    c.state = request.form.get("state", "")
+    c.country = request.form.get("country", "Pakistan")
+    c.phone = request.form.get("phone", "")
+    c.email = request.form.get("email", "")
+    c.website = request.form.get("website", "")
+    c.tax_id = request.form.get("tax_id", "")
+    c.registration_number = request.form.get("registration_number", "")
+    c.logo_url = request.form.get("logo_url", "")
+    c.fiscal_year_start_month = request.form.get("fiscal_year_start_month", 1, type=int)
+    c.currency = request.form.get("currency", "PKR")
+    c.currency_symbol = request.form.get("currency_symbol", "Rs.")
+    c.date_format = request.form.get("date_format", "Y-m-d")
+    c.timezone = request.form.get("timezone", "Asia/Karachi")
+    db.session.commit()
+    flash("Company profile updated.", "success")
+    return redirect(url_for("settings.index", tab="company"))
+
+
+# ── Financial periods ───────────────────────────────────────────────────────
+
+@settings_bp.route("/periods/add", methods=["POST"])
+@login_required
+def add_period():
+    denied = _require("periods")
+    if denied:
+        return denied
+    back = redirect(url_for("settings.index", tab="periods"))
+    try:
+        start = datetime.strptime(request.form["start_date"], "%Y-%m-%d").date()
+        end = datetime.strptime(request.form["end_date"], "%Y-%m-%d").date()
+    except (KeyError, ValueError):
+        flash("Start and end dates are required (YYYY-MM-DD).", "error")
+        return back
+    if end < start:
+        flash("End date cannot be before the start date.", "error")
+        return back
+    db.session.add(AccountingPeriod(
+        fiscal_year=request.form.get("fiscal_year") or str(start.year),
+        period_name=request.form.get("period_name") or f"FY {start.year}",
+        start_date=start, end_date=end, is_open=True))
+    db.session.commit()
+    flash("Period added.", "success")
+    return back
+
+
+@settings_bp.route("/periods/<int:id>/close", methods=["POST"])
+@login_required
+def close_period(id):
+    denied = _require("periods")
+    if denied:
+        return denied
+    p = AccountingPeriod.query.get_or_404(id)
+    p.is_open, p.is_closed, p.closed_at = False, True, datetime.utcnow()
+    db.session.commit()
+    flash(f"Period {p.period_name} closed.", "success")
+    return redirect(url_for("settings.index", tab="periods"))
+
+
+@settings_bp.route("/periods/<int:id>/reopen", methods=["POST"])
+@login_required
+def reopen_period(id):
+    denied = _require("periods")
+    if denied:
+        return denied
+    p = AccountingPeriod.query.get_or_404(id)
+    p.is_open, p.is_closed, p.closed_at = True, False, None
+    db.session.commit()
+    flash(f"Period {p.period_name} reopened.", "success")
+    return redirect(url_for("settings.index", tab="periods"))
+
+
+@settings_bp.route("/periods/seed", methods=["POST"])
+@login_required
+def seed_periods():
+    denied = _require("periods")
+    if denied:
+        return denied
+    AccountingPeriod.seed_current_year()
+    flash("Current fiscal year seeded.", "success")
+    return redirect(url_for("settings.index", tab="periods"))
+
+
+# ── Report structure (P&L layout) ───────────────────────────────────────────
+
+@settings_bp.route("/reports", methods=["POST"])
+@login_required
+def save_reports():
+    denied = _require("reports")
+    if denied:
+        return denied
+    s = ReportSettings.get()
+    s.pl_detail_rows = request.form.get("pl_detail_rows", 10, type=int) or 10
+
+    if request.form.get("reset_pl") == "1":
+        s.set_pl_structure(None)
+    else:
+        # Rebuild from the posted rows. Each row carries its fixed identity
+        # (section:<key> / subtotal:<key>) so users can reorder and rename but
+        # never change which accounts feed a section.
+        rows, idx = [], 0
+        while True:
+            ident = request.form.get(f"row_ident_{idx}")
+            if ident is None:
+                break
+            label = (request.form.get(f"row_label_{idx}") or "").strip()
+            order = request.form.get(f"row_order_{idx}", idx, type=int)
+            kind, key = ident.split(":", 1)
+            entry = {"label": label or key.replace("_", " ").title()}
+            if kind == "section":
+                entry["section"] = key
+                if request.form.get(f"row_negate_{idx}") == "1":
+                    entry["negate"] = True
+            else:
+                entry["subtotal"] = key
+            rows.append((order, idx, entry))
+            idx += 1
+        if rows:
+            rows.sort(key=lambda t: (t[0], t[1]))
+            s.set_pl_structure([e for _o, _i, e in rows])
+    db.session.commit()
+    flash("Report structure updated.", "success")
+    return redirect(url_for("settings.index", tab="reports"))
+
+
+# ── Inventory ───────────────────────────────────────────────────────────────
+
+@settings_bp.route("/inventory", methods=["POST"])
+@login_required
+def save_inventory():
+    denied = _require("inventory")
+    if denied:
+        return denied
+    s = InventorySettings.get()
+    method = request.form.get("valuation_method", "weighted_average")
+    s.valuation_method = method if method in ("weighted_average", "fifo") else "weighted_average"
+    s.allow_negative_stock = request.form.get("allow_negative_stock") == "on"
+    s.auto_generate_vouchers = request.form.get("auto_generate_vouchers") == "on"
+    s.decimal_places = min(max(request.form.get("decimal_places", 4, type=int), 0), 6)
+    pf = request.form.get("purchase_flow", "with_po")
+    s.purchase_flow = pf if pf in ("with_po", "direct_invoice") else "with_po"
+    sf = request.form.get("sales_flow", "with_so")
+    s.sales_flow = sf if sf in ("with_so", "direct_invoice") else "with_so"
+    for field in ("default_cogs_account_id", "default_inventory_account_id",
+                  "default_return_account_id"):
+        setattr(s, field, request.form.get(field, type=int) or None)
+    db.session.commit()
+    flash("Inventory settings updated.", "success")
+    return redirect(url_for("settings.index", tab="inventory"))
+
+
+# ── Purchase / sales invoice party mode ─────────────────────────────────────
+
+@settings_bp.route("/documents/<doc>", methods=["POST"])
+@login_required
+def save_document_settings(doc):
+    if doc not in ("purchase", "sales"):
+        abort(404)
+    denied = _require(doc)
+    if denied:
+        return denied
+    s = ReportSettings.get()
+    mode = request.form.get("party_mode", "relevant")
+    mode = mode if mode in ("relevant", "all") else "relevant"
+    if doc == "purchase":
+        s.purchase_party_mode = mode
+    else:
+        s.sales_party_mode = mode
+    db.session.commit()
+    flash(f"{doc.title()} invoice settings updated.", "success")
+    return redirect(url_for("settings.index", tab=doc))
+
+
+# ── Rights & access (admin only) ────────────────────────────────────────────
+
+@settings_bp.route("/users/<int:uid>/rights", methods=["GET", "POST"])
+@login_required
+def user_rights(uid):
+    denied = _require("rights")
+    if denied:
+        return denied
+    u = User.query.get_or_404(uid)
+
+    if request.method == "POST":
+        new_pw = request.form.get("new_password", "")
+        confirm = request.form.get("confirm_password", "")
+        if new_pw or confirm:
+            if len(new_pw) < 4:
+                flash("Password must be at least 4 characters.", "error")
+                return redirect(url_for("settings.user_rights", uid=uid))
+            if new_pw != confirm:
+                flash("Passwords do not match — enter the new password twice.", "error")
+                return redirect(url_for("settings.user_rights", uid=uid))
+            u.set_password(new_pw)
+
+        for module_key, _label, flag_attr, _sections in MODULES:
+            setattr(u, flag_attr, request.form.get(f"module_{module_key}") == "on")
+
+        # Rewrite this user's rows from the submitted grid so stored state
+        # always matches exactly what the admin sees on screen.
+        UserPermission.query.filter_by(user_id=u.id).delete()
+        for _module_key, _label, _flag, sections in MODULES:
+            for resource, _res_label in sections:
+                db.session.add(UserPermission(
+                    user_id=u.id, resource=resource,
+                    **{f"can_{a}": request.form.get(f"perm_{resource}_{a}") == "on"
+                       for a in ACTIONS}
+                ))
+        db.session.commit()
+        flash(f"Access rights saved for {u.full_name}.", "success")
+        return redirect(url_for("settings.index", tab="rights"))
+
+    perms = {p.resource: p for p in UserPermission.query.filter_by(user_id=u.id).all()}
+    return render_template("settings/user_rights.html", u=u, modules=MODULES,
+                           actions=ACTIONS, perms=perms,
+                           is_configured=bool(perms), module_key="settings")
+
+
+@settings_bp.route("/users/<int:uid>/reset-rights", methods=["POST"])
+@login_required
+def reset_rights(uid):
+    denied = _require("rights")
+    if denied:
+        return denied
+    u = User.query.get_or_404(uid)
+    UserPermission.query.filter_by(user_id=u.id).delete()
+    db.session.commit()
+    flash(f"Rights reset for {u.full_name} — unrestricted section access again.",
+          "success")
+    return redirect(url_for("settings.index", tab="rights"))
+
+
+@settings_bp.route("/users/<int:uid>/toggle-active", methods=["POST"])
+@login_required
+def toggle_active(uid):
+    denied = _require("rights")
+    if denied:
+        return denied
+    u = User.query.get_or_404(uid)
+    if u.id == current_user.id:
+        flash("You cannot deactivate your own account.", "error")
+        return redirect(url_for("settings.index", tab="rights"))
+    u.is_active = not u.is_active
+    db.session.commit()
+    flash(f"{u.full_name} {'activated' if u.is_active else 'deactivated'}.", "success")
+    return redirect(url_for("settings.index", tab="rights"))

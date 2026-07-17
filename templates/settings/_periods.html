@@ -1,0 +1,71 @@
+<div class="set-card">
+  <h3>Financial Periods</h3>
+  <p class="hint">Reports default to the period containing today. Closing a period is a control step — it doesn't block posting by itself.</p>
+
+  <div class="tbl-scroll">
+    <table class="stbl">
+      <thead>
+        <tr><th>Fiscal Year</th><th>Period</th><th>Start</th><th>End</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in periods %}
+        <tr>
+          <td>{{ p.fiscal_year }}</td>
+          <td>{{ p.period_name }}</td>
+          <td>{{ p.start_date.strftime('%d %b %Y') }}</td>
+          <td>{{ p.end_date.strftime('%d %b %Y') }}</td>
+          <td>
+            {% if p.is_closed %}<span class="pill pill-off">Closed</span>
+            {% else %}<span class="pill pill-on">Open</span>{% endif %}
+          </td>
+          <td style="text-align:right;">
+            {% if p.is_closed %}
+            <form method="POST" action="{{ url_for('settings.reopen_period', id=p.id) }}" style="display:inline;">
+              <button type="submit" class="bsm">Reopen</button>
+            </form>
+            {% else %}
+            <form method="POST" action="{{ url_for('settings.close_period', id=p.id) }}" style="display:inline;"
+                  onsubmit="return confirm('Close {{ p.period_name }}?');">
+              <button type="submit" class="bsm">Close</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">No periods defined yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <form method="POST" action="{{ url_for('settings.seed_periods') }}" style="margin-top:12px;">
+    <button type="submit" class="bsm">+ Seed current fiscal year</button>
+  </form>
+</div>
+
+<div class="set-card" style="margin-top:16px;">
+  <h3 style="font-size:15px;">Add a Period</h3>
+  <form method="POST" action="{{ url_for('settings.add_period') }}">
+    <div class="fgrid">
+      <div class="fgroup">
+        <label class="lbl">Fiscal Year</label>
+        <input type="text" name="fiscal_year" class="inp" placeholder="2026">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">Period Name</label>
+        <input type="text" name="period_name" class="inp" placeholder="FY 2026">
+      </div>
+      <div class="fgroup">
+        <label class="lbl">Start Date</label>
+        <input type="date" name="start_date" class="inp" required>
+      </div>
+      <div class="fgroup">
+        <label class="lbl">End Date</label>
+        <input type="date" name="end_date" class="inp" required>
+      </div>
+    </div>
+    <div class="set-actions">
+      <button type="submit" class="btn btn-p">Add Period</button>
+    </div>
+  </form>
+</div>

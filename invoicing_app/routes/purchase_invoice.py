@@ -60,7 +60,7 @@ def invoice_form(id):
                            invoice=invoice,
                            invoice_items=invoice_items,
                            suppliers=suppliers,
-                           party_mode=ReportSettings.get().invoice_party_mode,
+                           party_mode=ReportSettings.get().party_mode("purchase"),
                            products=products,
                            now=datetime.utcnow())
 

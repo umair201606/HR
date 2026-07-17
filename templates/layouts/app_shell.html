@@ -1,0 +1,233 @@
+{#
+  The single application shell. Every module's layout extends this so the
+  sidebar header, footer, module switcher and mobile behaviour are defined
+  once. Modules supply only `module_key`; navigation comes from
+  shared/navigation.py.
+
+  NOTE: this file must NOT be named layouts/base.html — the Jinja ChoiceLoader
+  in app.py appends each module's template folder, so a root layouts/base.html
+  would silently shadow hr_app/templates/layouts/base.html for all 51 HR
+  templates.
+
+  Blocks are the union of every layout this replaced, so extending templates
+  keep working unchanged: title, page_title, heading, actions, content,
+  extra_css, extra_head, extra_scripts, login_content, back_nav.
+#}
+{% set module_key = module_key|default('hr') %}
+{% set meta = nav_meta(module_key) %}
+{% set nav_blocks = nav_for(module_key) %}
+{% set switch_modules = nav_modules() %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ meta.label }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <style>
+    /* Shell-only additions; module accents come from `meta`. */
+    .sidebar-footer { margin-top: auto; padding: 10px 12px 14px;
+                      border-top: 1px solid rgba(255,255,255,.08); }
+    .sidebar { display: flex; flex-direction: column; }
+    .sidebar-nav { flex: 1; overflow-y: auto; overflow-x: hidden; }
+    .mod-switch { position: relative; padding: 0 12px 8px; }
+    .mod-switch-btn { width: 100%; display: flex; align-items: center; gap: 8px;
+                      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10);
+                      color: rgba(255,255,255,.82); border-radius: 8px; padding: 7px 10px;
+                      font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+    .mod-switch-btn:hover { background: rgba(255,255,255,.12); }
+    .mod-switch-btn .chev { margin-left: auto; font-size: 10px; opacity: .7; }
+    .mod-menu { display: none; position: absolute; left: 12px; right: 12px; z-index: 60;
+                background: #fff; border: 1px solid var(--line); border-radius: 8px;
+                box-shadow: 0 10px 30px rgba(0,0,0,.18); overflow: hidden; margin-top: 4px; }
+    .mod-menu.show { display: block; }
+    .mod-menu a { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+                  font-size: 12.5px; color: var(--ink); text-decoration: none; }
+    .mod-menu a:hover { background: #f1f5f9; }
+    .mod-dot { width: 20px; height: 20px; border-radius: 5px; color: #fff; font-size: 10px;
+               font-weight: 700; display: flex; align-items: center; justify-content: center;
+               flex-shrink: 0; }
+    .sidebar.collapsed .mod-switch { display: none; }
+    .page-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .page-actions:empty { display: none; }
+    /* Never let a page force horizontal scroll on small screens. */
+    .content-area { max-width: 100%; }
+    @media (max-width: 768px) {
+      body { overflow-x: hidden; }
+      /* Below 768px `collapsed` keeps full width (app.css), so the switcher
+         must come back with it — this file loads after app.css and would
+         otherwise win on equal specificity. */
+      .sidebar.collapsed .mod-switch { display: block; }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% if current_user.is_authenticated %}
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+
+      {# ── Common sidebar header: brand + module switcher + user ── #}
+      <div class="sidebar-header">
+        <div class="brand-icon" style="background:{{ meta.brand }};">{{ meta.letter }}</div>
+        <h2>{{ meta.label }}</h2>
+      </div>
+
+      {% if switch_modules|length > 1 %}
+      <div class="mod-switch">
+        <button type="button" class="mod-switch-btn" id="mod-switch-btn" aria-haspopup="true" aria-expanded="false">
+          <span class="mod-dot" style="background:{{ meta.brand }};">{{ meta.letter }}</span>
+          <span>Switch module</span>
+          <span class="chev">&#9662;</span>
+        </button>
+        <div class="mod-menu" id="mod-menu" role="menu">
+          {% for m in switch_modules %}
+          <a href="{{ url_for(m.home) }}" role="menuitem">
+            <span class="mod-dot" style="background:{{ m.brand }};">{{ m.letter }}</span>
+            <span>{{ m.label }}</span>
+          </a>
+          {% endfor %}
+          <a href="{{ url_for('dashboard.hub') }}" role="menuitem">
+            <span class="mod-dot" style="background:#475569;">&#9632;</span>
+            <span>ERP Hub</span>
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="sidebar-user">
+        <div class="sidebar-user-avatar" style="background:{{ meta.brand }};">
+          {% if current_user.profile_image %}
+          <img src="{{ url_for('ess.avatar', filename=current_user.profile_image) }}" alt="{{ current_user.full_name }}">
+          {% else %}{{ current_user.full_name[:1] }}{% endif %}
+        </div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name">{{ current_user.full_name }}</div>
+          <div class="sidebar-user-role">{{ current_user.designation or current_user.get_role_name()|title }}</div>
+        </div>
+      </div>
+
+      {# ── Per-module navigation (shared/navigation.py) ── #}
+      <nav class="sidebar-nav">
+        {% for block in nav_blocks %}
+          {% if block.kind == 'flat' %}
+            {% for item in block['items'] %}
+            <a href="{{ url_for(item.endpoint) }}" class="nav-item {{ 'active' if item.active }}">
+              <span class="nav-icon">{{ item.icon|safe }}</span><span>{{ item.label }}</span>
+            </a>
+            {% endfor %}
+          {% else %}
+          <div class="nav-group {{ 'expanded' if block.expanded }}" data-group="{{ block.slug }}">
+            <div class="nav-group-header">
+              <span class="nav-icon">{{ block.icon|safe }}</span><span>{{ block.name }}</span>
+              <span class="group-chevron">&#9662;</span>
+            </div>
+            <div class="nav-group-items">
+              {% for item in block['items'] %}
+              <a href="{{ url_for(item.endpoint) }}" class="nav-item {{ 'active' if item.active }}">
+                <span class="nav-icon">{{ item.icon|safe }}</span><span>{{ item.label }}</span>
+              </a>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </nav>
+
+      {# ── Common sidebar footer: identical options in every module ── #}
+      <div class="sidebar-footer">
+        <a href="{{ url_for('settings.index') }}" class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('settings.') }}" style="color:rgba(255,255,255,.62);">
+          <span class="nav-icon">&#9881;</span><span>Settings</span>
+        </a>
+        <a href="{{ url_for('dashboard.hub') }}" class="nav-item" style="color:rgba(255,255,255,.62);">
+          <span class="nav-icon">&#9632;</span><span>ERP Hub</span>
+        </a>
+        <a href="{{ url_for('auth.logout') }}" class="nav-item" style="color:rgba(255,255,255,.62);">
+          <span class="nav-icon">&#9654;</span><span>Logout</span>
+        </a>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation">&#9776;</button>
+        <h2 class="page-title" style="font-size:16px;font-weight:600;flex:1;margin:0 16px;">
+          {% block page_title %}{% block heading %}{{ meta.label }}{% endblock %}{% endblock %}
+        </h2>
+        <div class="topbar-right">
+          <span class="mod-badge" style="font-size:11px;background:{{ meta.badge_bg }};color:{{ meta.badge_fg }};padding:2px 8px;border-radius:4px;font-weight:600;">{{ meta.badge }}</span>
+          {% if unread_count is defined %}
+          <div class="notif-dropdown" id="notif-dropdown">
+            <button class="notif-btn" id="notif-btn">&#128276;{% if unread_count > 0 %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</button>
+            <div class="notif-menu hidden" id="notif-menu">
+              <div class="notif-menu-header">
+                <strong>Notifications</strong>
+                <button class="btn-link" id="mark-all-read">Mark all read</button>
+              </div>
+              <div id="notif-list">
+                {% for r in recent_notifications %}
+                <div class="notif-item" data-id="{{ r.id }}">
+                  <div class="notif-title">{{ r.notification.title }}</div>
+                  <div class="notif-msg">{{ r.notification.message }}</div>
+                </div>
+                {% else %}
+                <div class="notif-empty">No new notifications</div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          <div class="user-menu">
+            <div class="avatar" style="background:{{ meta.brand }};">
+              {% if current_user.profile_image %}
+              <img src="{{ url_for('ess.avatar', filename=current_user.profile_image) }}" alt="{{ current_user.full_name }}">
+              {% else %}{{ current_user.full_name[:1] }}{% endif %}
+            </div>
+            <span class="user-name">{{ current_user.full_name }}</span>
+            <span class="user-role">{{ current_user.get_role_name()|title }}</span>
+            <a href="{{ url_for('auth.logout') }}" class="btn-link">Logout</a>
+          </div>
+        </div>
+      </header>
+      <div class="content-area">
+        {% include '_flash.html' %}
+        {% block back_nav %}
+        {% if back_url %}
+        <a href="{{ back_url }}" class="btn btn-link" style="margin-bottom:8px;">&larr; Back</a>
+        {% endif %}
+        {% endblock %}
+        {# Page-level toolbar (exports, print). Templates fill `actions`; the
+           wrapper lives here so every module positions them identically. #}
+        <div class="page-actions no-print">{% block actions %}{% endblock %}</div>
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+  {% else %}
+  <div class="login-layout">
+    {% block login_content %}{% endblock %}
+  </div>
+  {% endif %}
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script>
+    // Module switcher dropdown (shell-local; everything else is in app.js).
+    (function () {
+      var btn = document.getElementById('mod-switch-btn');
+      var menu = document.getElementById('mod-menu');
+      if (!btn || !menu) return;
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = menu.classList.toggle('show');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      document.addEventListener('click', function () {
+        menu.classList.remove('show');
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    })();
+  </script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

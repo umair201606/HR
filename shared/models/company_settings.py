@@ -67,9 +67,14 @@ class ReportSettings(db.Model):
     pl_structure_json = db.Column(db.Text)  # JSON list; null -> DEFAULT_PL_STRUCTURE
     # Accounts listed per P&L section before collapsing the rest into "Others".
     pl_detail_rows = db.Column(db.Integer, default=10)
-    # Invoice party picker: "relevant" = suppliers/customers only,
-    # "all" = any postable ledger account may be the counterparty.
+    # Deprecated: superseded by purchase_party_mode / sales_party_mode, which
+    # are set independently. Retained so existing rows migrate cleanly.
     invoice_party_mode = db.Column(db.String(10), default="relevant")
+    # Invoice party picker, per document type: "relevant" = suppliers (or
+    # customers) only; "all" = any postable ledger account may be the
+    # counterparty, via a Post To Ledger Account override on the form.
+    purchase_party_mode = db.Column(db.String(10), default="relevant")
+    sales_party_mode = db.Column(db.String(10), default="relevant")
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     @classmethod
@@ -80,6 +85,15 @@ class ReportSettings(db.Model):
             db.session.add(s)
             db.session.commit()
         return s
+
+    def party_mode(self, doc):
+        """Party-picker mode for "purchase" or "sales" documents.
+
+        Falls back to the deprecated single flag so databases written before
+        the split keep the behaviour their admin chose.
+        """
+        value = self.purchase_party_mode if doc == "purchase" else self.sales_party_mode
+        return value or self.invoice_party_mode or "relevant"
 
     def pl_structure(self):
         if self.pl_structure_json:

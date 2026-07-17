@@ -1,0 +1,56 @@
+{# Shared by the Purchase Invoices and Sales Invoices tabs — same setting,
+   independent values per document type. #}
+{% set is_purchase = tab == 'purchase' %}
+{% set party = 'supplier' if is_purchase else 'customer' %}
+{% set current = report_settings.party_mode(tab) %}
+
+<div class="set-card">
+  <h3>{{ 'Purchase' if is_purchase else 'Sales' }} Invoices</h3>
+  <p class="hint">
+    Controls which accounts a {{ 'purchase' if is_purchase else 'sales' }} invoice may post its
+    {{ 'payable' if is_purchase else 'receivable' }} to.
+  </p>
+
+  <form method="POST" action="{{ url_for('settings.save_document_settings', doc=tab) }}">
+    <div class="fgroup">
+      <label class="lbl">Party Selection</label>
+      <div class="radio-row">
+        <label class="radio-card">
+          <input type="radio" name="party_mode" value="relevant" {{ 'checked' if current != 'all' }}>
+          <span class="rc-h">{{ party|title }}s only</span>
+          <div class="rc-d">
+            The form offers only {{ party }}s. The {{ 'payable' if is_purchase else 'receivable' }}
+            posts to that {{ party }}'s own ledger account.
+          </div>
+        </label>
+        <label class="radio-card">
+          <input type="radio" name="party_mode" value="all" {{ 'checked' if current == 'all' }}>
+          <span class="rc-h">Allow any ledger account</span>
+          <div class="rc-d">
+            Adds an optional <strong>Post To Ledger Account</strong> field, so the
+            {{ 'payable' if is_purchase else 'receivable' }} can be posted to any
+            level-5 account instead of the {{ party }}'s.
+          </div>
+        </label>
+      </div>
+      <div class="help">
+        The invoice still belongs to a {{ party }} either way — this only changes which account
+        the {{ 'credit' if is_purchase else 'debit' }} lands on. Existing invoices keep the account
+        they were posted to.
+      </div>
+    </div>
+
+    <div class="set-actions">
+      <button type="submit" class="btn btn-p">Save {{ 'Purchase' if is_purchase else 'Sales' }} Settings</button>
+    </div>
+  </form>
+</div>
+
+<div class="set-card" style="margin-top:16px;">
+  <h3 style="font-size:15px;">Currently</h3>
+  <p class="hint" style="margin-bottom:0;">
+    Purchase invoices: <strong>{{ 'any ledger account' if report_settings.party_mode('purchase') == 'all' else 'suppliers only' }}</strong>
+    &nbsp;·&nbsp;
+    Sales invoices: <strong>{{ 'any ledger account' if report_settings.party_mode('sales') == 'all' else 'customers only' }}</strong>
+  </p>
+</div>

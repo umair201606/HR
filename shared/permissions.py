@@ -3,6 +3,9 @@
 Each section key is the `resource` stored in UserPermission and checked by
 User.can(resource, action). Keep keys stable — they are referenced from route
 enforcement across the apps.
+
+Settings itself has no section here: each tab is gated on the matching module
+access flag by shared/routes/settings.py, not on a UserPermission resource.
 """
 
 ACTIONS = ["view", "create", "edit", "approve", "delete"]
@@ -35,11 +38,9 @@ MODULES = [
         ("purchase_invoices", "Purchase Invoices"),
         ("purchase_returns", "Purchase Returns"),
         ("sales_invoices", "Sales Invoices"),
-        ("invoicing_settings", "Invoicing Settings"),
     ]),
     ("finance", "Finance", "has_finance_access", [
         ("financial_reports", "Financial Reports"),
-        ("finance_settings", "Finance Settings"),
     ]),
     ("accounting", "Accounting", "has_accounting_access", [
         ("cash_payment_vouchers", "Cash Payment Vouchers (CPV)"),

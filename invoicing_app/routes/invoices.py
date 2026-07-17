@@ -58,7 +58,7 @@ def invoice_form(id):
     return render_template("invoices/form_inv.html",
                            invoice=invoice, invoice_items=invoice_items,
                            customers=customers,
-                           party_mode=ReportSettings.get().invoice_party_mode,
+                           party_mode=ReportSettings.get().party_mode("sales"),
                            products=products, now=datetime.utcnow())
 
 

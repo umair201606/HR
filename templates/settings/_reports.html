@@ -1,0 +1,55 @@
+<div class="set-card">
+  <h3>Report Structure</h3>
+  <p class="hint">Reorder rows and rename sections or profit lines on the Profit &amp; Loss statement. Which accounts feed each section is fixed by that account's P&amp;L tag in the <a href="{{ url_for('coa.list_accounts') }}" style="color:var(--link);">chart of accounts</a>.</p>
+
+  <form method="POST" action="{{ url_for('settings.save_reports') }}">
+    <div class="tbl-scroll">
+      <table class="stbl">
+        <thead>
+          <tr><th style="width:70px;">Order</th><th>Row</th><th>Display Label</th><th style="width:110px;">Shown as</th></tr>
+        </thead>
+        <tbody>
+          {% for row in pl_structure %}
+          <tr>
+            <td><input type="number" name="row_order_{{ loop.index0 }}" value="{{ loop.index0 }}"
+                       class="inp" style="width:62px;text-align:center;padding:5px;"></td>
+            <td>
+              {% if row.section %}
+              <input type="hidden" name="row_ident_{{ loop.index0 }}" value="section:{{ row.section }}">
+              {% if row.negate %}<input type="hidden" name="row_negate_{{ loop.index0 }}" value="1">{% endif %}
+              <span class="pill" style="background:#dbeafe;color:#1d4ed8;">Section</span>
+              <span style="font-family:monospace;font-size:11px;color:var(--muted);">{{ row.section }}</span>
+              {% else %}
+              <input type="hidden" name="row_ident_{{ loop.index0 }}" value="subtotal:{{ row.subtotal }}">
+              <span class="pill pill-on">Profit line</span>
+              <span style="font-family:monospace;font-size:11px;color:var(--muted);">{{ row.subtotal }}</span>
+              {% endif %}
+            </td>
+            <td><input type="text" name="row_label_{{ loop.index0 }}" value="{{ row.label }}" class="inp"></td>
+            <td style="font-size:11.5px;color:var(--muted);">
+              {{ 'Deduction' if row.negate else ('Running total' if row.subtotal else 'Addition') }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="fgrid" style="margin-top:16px;">
+      <div class="fgroup">
+        <label class="lbl">Accounts shown per section</label>
+        <input type="number" name="pl_detail_rows" class="inp" style="width:110px;"
+               value="{{ report_settings.pl_detail_rows or 10 }}" min="1" max="100">
+        <div class="help">Any beyond this collapse into an "Others" row.</div>
+      </div>
+    </div>
+
+    <div class="set-actions">
+      <button type="submit" class="btn btn-p">Save Report Structure</button>
+      <button type="submit" name="reset_pl" value="1" class="bsm"
+              onclick="return confirm('Reset the P&L layout to the default structure?')">
+        Reset to Default
+      </button>
+    </div>
+  </form>
+</div>

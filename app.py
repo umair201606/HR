@@ -41,8 +41,8 @@ def _create_app():
     from shared.routes.dashboard import dashboard_bp
     app.register_blueprint(dashboard_bp)
 
-    from shared.routes.admin_settings import admin_settings_bp
-    app.register_blueprint(admin_settings_bp)
+    from shared.routes.settings import settings_bp
+    app.register_blueprint(settings_bp)
 
     from hr_app.app import register_hr_blueprints
     register_hr_blueprints(app)
@@ -68,6 +68,39 @@ def _create_app():
             return {"company": CompanyInfo.get()}
         except Exception:
             return {"company": None}
+
+    @app.context_processor
+    def inject_navigation():
+        """Sidebar helpers for templates/layouts/app_shell.html.
+
+        Exposed as callables (not values) so the shell can pass the module_key
+        it sets, which isn't known until the template renders.
+        """
+        from flask import request
+        from shared.navigation import (MODULE_META, build_nav,
+                                       accessible_modules)
+
+        def nav_meta(module_key):
+            return MODULE_META.get(module_key, MODULE_META["hr"])
+
+        def nav_for(module_key):
+            if not current_user.is_authenticated:
+                return []
+            ctx = {}
+            try:
+                from shared.models.inventory_settings import InventorySettings
+                s = InventorySettings.get()
+                ctx = {"purchase_flow": s.purchase_flow, "sales_flow": s.sales_flow}
+            except Exception:
+                pass
+            return build_nav(module_key, current_user, request.endpoint, ctx)
+
+        def nav_modules():
+            if not current_user.is_authenticated:
+                return []
+            return accessible_modules(current_user)
+
+        return {"nav_meta": nav_meta, "nav_for": nav_for, "nav_modules": nav_modules}
 
     @app.route("/")
     def index():
@@ -165,6 +198,8 @@ def _migrate_schema(db):
         ("chart_of_accounts", "pl_section", "VARCHAR(30)"),
         ("inv_invoices", "party_account_id", "INTEGER"),
         ("inv_purchase_invoices", "party_account_id", "INTEGER"),
+        ("report_settings", "purchase_party_mode", "VARCHAR(10)"),
+        ("report_settings", "sales_party_mode", "VARCHAR(10)"),
         ("inv_suppliers", "mobile", "VARCHAR(200) DEFAULT ''"),
         ("inv_suppliers", "tax_id", "VARCHAR(200) DEFAULT ''"),
         ("inv_suppliers", "payment_terms", "VARCHAR(200) DEFAULT ''"),
