@@ -17,6 +17,9 @@ class StockLedger(db.Model):
     running_qty = db.Column(db.Numeric(16, 4), nullable=False)
     running_cost = db.Column(db.Numeric(16, 4), nullable=False)
     running_avg = db.Column(db.Numeric(16, 4), nullable=False)
+    # Method in force when this row was priced. Audit only — cost comes from
+    # the layers, never from re-interpreting history under today's method.
+    valuation_method = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     notes = db.Column(db.Text)

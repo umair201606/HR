@@ -6,115 +6,199 @@ return, consumption, scrap, adjustment, stock take) must go through
 ``record_in`` / ``record_out`` so the StockLedger holds a complete history:
 
     IN  rows carry the actual acquisition cost (landed purchase cost).
-    OUT rows carry the cost COMPUTED by the valuation method at issue time —
-        weighted average or FIFO per InventorySettings — never a price typed
-        by the user and never the product's static cost_price.
+    OUT rows carry the cost COMPUTED from the cost layers at issue time —
+        never a price typed by the user and never the product's static
+        cost_price.
 
 That computed cost is what the calling voucher posts to the general ledger
 (COGS, scrap loss, an employee's receivable account, ...), so receivables/
 payables always reflect true historic cost.
+
+HOW VALUATION WORKS
+-------------------
+Cost lives in StockLayer rows, not in a replay of the ledger. The two
+valuation methods differ in exactly one place — what a RECEIPT does:
+
+    FIFO              each receipt opens a new layer.
+    weighted average  each receipt merges into the single open layer,
+                      re-averaging its unit cost.
+
+Issuing is identical under both: consume layers oldest-first at each layer's
+own cost. Under weighted average there is only ever one open layer, so that
+cost IS the running average.
+
+Because issues decrement real layers rather than assuming a consumption
+order, this invariant always holds:
+
+    sum(layer.qty_remaining * layer.unit_cost) == ledger running_cost
+
+WHY THAT MATTERS
+----------------
+Switching valuation method is a REVALUATION, not a re-interpretation of
+history (this is what SAP's material ledger and NetSuite's cost
+revaluation do):
+
+    WA -> FIFO   the single open layer carries forward at book value;
+                 later receipts open new layers.
+    FIFO -> WA   remaining layers collapse into one at book value.
+
+Both directions preserve book value exactly, so a method switch can never
+change a cost that was already computed and posted. The old engine derived
+FIFO layers by replaying OUT quantities against IN rows, which silently
+assumed every past issue had consumed oldest-first; switching methods then
+invented value (buy 10@10 + 10@20, sell 10 at avg 15, switch to FIFO ->
+COGS 350 against purchases of 300). Layers make that unrepresentable.
 """
 
 from decimal import Decimal
 
 from shared.extensions import db
 from shared.models.stock_ledger import StockLedger
+from shared.models.stock_layer import StockLayer, LayerConsumption
 from shared.models.inventory_settings import InventorySettings
 
 ZERO = Decimal("0")
+
+
+class NegativeStockError(Exception):
+    """Raised when an issue would drive stock below zero and the company has
+    not enabled ``allow_negative_stock``.
+
+    Costing stock that was never purchased means inventing value: the
+    uncovered units have no acquisition cost to draw on, so any figure the
+    engine posts to COGS (or an employee's receivable) is a guess that will
+    not reconcile against the inventory control account. Refuse instead.
+    """
+
+
+class ConsumedLayerError(Exception):
+    """Raised when reversing a receipt whose stock has already been issued.
+
+    The issue drew its cost from this receipt's layer and posted that cost to
+    the general ledger, where it is frozen. Withdrawing the receipt now would
+    leave that posted cost backed by a purchase that no longer exists: the
+    quantity would have to come from a later, differently-priced layer while
+    the posted figure stayed put, and the difference — real money — would
+    silently land nowhere.
+
+    Reverse the dependent issues first, which returns the quantity to this
+    layer and reverses their journal entries, then reverse the receipt. This
+    is what SAP does when a goods receipt has downstream consumption.
+    """
+
+    def __init__(self, message, dependents=None):
+        super().__init__(message)
+        self.dependents = dependents or []
 
 
 def _q(value, places=4):
     return Decimal(str(value or 0)).quantize(Decimal("0." + "0" * places))
 
 
+def _d(value):
+    return Decimal(str(value or 0))
+
+
 def _settings():
     return InventorySettings.get()
 
 
+def _open_layers(product_id):
+    """Layers with stock left, oldest first — the consumption order."""
+    return (StockLayer.query
+            .filter(StockLayer.product_id == product_id,
+                    StockLayer.qty_remaining > 0)
+            .order_by(StockLayer.id.asc())
+            .all())
+
+
 def on_hand(product_id):
     qty, _cost, _avg = StockLedger.get_running_balance(product_id)
-    return Decimal(str(qty or 0))
+    return _d(qty)
 
 
-def fifo_layers_remaining(product_id):
-    """Remaining (unit_cost, qty) purchase layers, oldest first.
+def layers_remaining(product_id):
+    """Remaining (unit_cost, qty) layers, oldest first."""
+    return [(_d(l.unit_cost), _d(l.qty_remaining)) for l in _open_layers(product_id)]
 
-    Layers are derived by replay: total OUT quantity so far consumes the
-    earliest IN rows first, so no per-layer consumption bookkeeping is needed
-    and the result is always consistent with the ledger.
-    """
-    rows = StockLedger.query.filter_by(product_id=product_id).order_by(StockLedger.id.asc()).all()
-    consumed = sum((Decimal(str(r.quantity)) for r in rows if r.transaction_type == "OUT"), ZERO)
-    layers = []
-    for r in rows:
-        if r.transaction_type != "IN":
-            continue
-        qty = Decimal(str(r.quantity))
-        if consumed >= qty:
-            consumed -= qty
-            continue
-        layers.append((Decimal(str(r.unit_cost)), qty - consumed))
-        consumed = ZERO
-    return layers
+
+# Kept for callers/tests written against the previous engine.
+fifo_layers_remaining = layers_remaining
+
+
+def stock_value(product_id):
+    """Value of stock on hand per the layers."""
+    return sum((_d(l.qty_remaining) * _d(l.unit_cost) for l in _open_layers(product_id)), ZERO)
 
 
 def current_unit_cost(product_id):
-    """Unit cost of stock on hand under the configured valuation method."""
-    qty, cost, avg = StockLedger.get_running_balance(product_id)
-    qty = Decimal(str(qty or 0))
-    if qty <= 0:
+    """Unit cost of stock on hand: total layer value / total layer qty."""
+    layers = _open_layers(product_id)
+    total_qty = sum((_d(l.qty_remaining) for l in layers), ZERO)
+    if total_qty <= 0:
         # Nothing on hand — fall back to the most recent known cost so
         # vouchers over empty stock still carry a sensible value.
-        last_in = StockLedger.query.filter_by(
-            product_id=product_id, transaction_type="IN"
-        ).order_by(StockLedger.id.desc()).first()
-        return Decimal(str(last_in.unit_cost)) if last_in else ZERO
-    if _settings().is_fifo():
-        layers = fifo_layers_remaining(product_id)
-        total = sum((c * q for c, q in layers), ZERO)
-        lqty = sum((q for _c, q in layers), ZERO)
-        return _q(total / lqty) if lqty > 0 else Decimal(str(avg))
-    return Decimal(str(avg or 0))
+        last = (StockLayer.query
+                .filter_by(product_id=product_id)
+                .order_by(StockLayer.id.desc()).first())
+        return _d(last.unit_cost) if last else ZERO
+    total_value = sum((_d(l.qty_remaining) * _d(l.unit_cost) for l in layers), ZERO)
+    return _q(total_value / total_qty)
+
+
+def _plan_consumption(product_id, qty):
+    """(plan, uncovered) for issuing ``qty`` — oldest layers first.
+
+    ``plan`` is [(layer, take_qty, unit_cost)]; ``uncovered`` is what no
+    layer could cover. Pure: decrements nothing.
+    """
+    remaining = qty
+    plan = []
+    for layer in _open_layers(product_id):
+        if remaining <= 0:
+            break
+        take = min(_d(layer.qty_remaining), remaining)
+        if take <= 0:
+            continue
+        plan.append((layer, take, _d(layer.unit_cost)))
+        remaining -= take
+    return plan, remaining
 
 
 def cost_of_issue(product_id, qty):
     """(unit_cost, total_cost) that issuing ``qty`` units would carry NOW.
 
-    Weighted average: qty x running average.
-    FIFO: consume remaining layers oldest-first; if the requested quantity
-    exceeds stock on hand, the uncovered remainder is costed at the last
-    known layer cost so the ledger never books free stock.
+    Consumes layers oldest-first at each layer's own cost. Under weighted
+    average there is a single open layer, so this returns the running
+    average; under FIFO it returns the blended cost of the layers the issue
+    would actually eat.
+
+    Does not mutate anything — callers that intend to issue use
+    ``record_out``, which plans and consumes in one step.
     """
-    qty = Decimal(str(qty))
+    qty = _d(qty)
     if qty <= 0:
         return ZERO, ZERO
-    if not _settings().is_fifo():
-        unit = current_unit_cost(product_id)
-        return unit, _q(qty * unit, 2)
-    layers = fifo_layers_remaining(product_id)
-    remaining, total, last_cost = qty, ZERO, ZERO
-    for unit_cost, layer_qty in layers:
-        take = min(layer_qty, remaining)
-        total += take * unit_cost
-        last_cost = unit_cost
-        remaining -= take
-        if remaining <= 0:
-            break
-    if remaining > 0:
-        if last_cost == ZERO:
-            last_cost = current_unit_cost(product_id)
-        total += remaining * last_cost
-    unit = _q(total / qty) if qty else ZERO
-    return unit, _q(total, 2)
+    plan, uncovered = _plan_consumption(product_id, qty)
+    total = sum((take * cost for _l, take, cost in plan), ZERO)
+    if uncovered > 0:
+        # Only reachable when negative stock is allowed; the uncovered units
+        # are costed at the last known cost so the ledger never books free
+        # stock. record_out refuses this case unless it is enabled.
+        total += uncovered * current_unit_cost(product_id)
+    return _q(total / qty), _q(total, 2)
 
 
 def _sync_product_stock(product_id):
     from inventory_app.models.product import InvProduct
     p = InvProduct.query.get(product_id)
     if p is not None:
-        qty = on_hand(product_id)
-        p.current_stock = int(qty)
+        # current_stock is a legacy denormalised Integer column kept for
+        # display; the StockLedger (Numeric 16,4) is authoritative and is what
+        # every costing decision reads. Fractional stock therefore shows
+        # truncated here — fixing that means widening the column, not lying
+        # about the type by writing a float into an Integer on Postgres.
+        p.current_stock = int(on_hand(product_id))
         # Keep the legacy static field in step with the engine so any old
         # display code shows the current valuation cost.
         unit = current_unit_cost(product_id)
@@ -125,8 +209,7 @@ def _sync_product_stock(product_id):
 def _write_row(product_id, voucher_type, voucher_id, voucher_number,
                transaction_type, qty, unit_cost, total_cost, notes, created_by):
     prev_qty, prev_cost, _prev_avg = StockLedger.get_running_balance(product_id)
-    prev_qty = Decimal(str(prev_qty or 0))
-    prev_cost = Decimal(str(prev_cost or 0))
+    prev_qty, prev_cost = _d(prev_qty), _d(prev_cost)
     if transaction_type == "IN":
         new_qty = prev_qty + qty
         new_cost = prev_cost + total_cost
@@ -148,50 +231,174 @@ def _write_row(product_id, voucher_type, voucher_id, voucher_number,
         running_qty=new_qty,
         running_cost=new_cost,
         running_avg=new_avg,
+        valuation_method=_settings().valuation_method,
         notes=notes,
         created_by=created_by,
     )
     db.session.add(row)
     db.session.flush()
-    _sync_product_stock(product_id)
     return row
 
 
 def record_in(product_id, voucher_type, voucher_id, voucher_number,
               qty, unit_cost, notes="", created_by=1):
-    """Stock received at an actual acquisition cost (e.g. landed purchase cost)."""
-    qty = Decimal(str(qty))
+    """Stock received at an actual acquisition cost (e.g. landed purchase cost).
+
+    FIFO opens a new layer. Weighted average merges into the open layer and
+    re-averages it, so exactly one layer stays open and its cost is the
+    running average.
+    """
+    qty = _d(qty)
     unit_cost = _q(unit_cost)
-    return _write_row(product_id, voucher_type, voucher_id, voucher_number,
-                      "IN", qty, unit_cost, _q(qty * unit_cost, 2), notes, created_by)
+    total_cost = _q(qty * unit_cost, 2)
+    row = _write_row(product_id, voucher_type, voucher_id, voucher_number,
+                     "IN", qty, unit_cost, total_cost, notes, created_by)
+
+    settings = _settings()
+    open_layers = _open_layers(product_id)
+    if settings.is_fifo() or not open_layers:
+        db.session.add(StockLayer(
+            product_id=product_id, source_ledger_id=row.id,
+            unit_cost=unit_cost, qty_original=qty, qty_remaining=qty,
+            method=settings.valuation_method, notes=notes,
+        ))
+    else:
+        # Weighted average: re-average the single open layer. Any extra open
+        # layers (left by a FIFO period before the switch) are folded in too,
+        # so the pool collapses back to one.
+        total_qty = sum((_d(l.qty_remaining) for l in open_layers), ZERO) + qty
+        total_value = sum((_d(l.qty_remaining) * _d(l.unit_cost)
+                           for l in open_layers), ZERO) + total_cost
+        keep, rest = open_layers[0], open_layers[1:]
+        keep.qty_remaining = total_qty
+        keep.unit_cost = _q(total_value / total_qty) if total_qty > 0 else ZERO
+        keep.qty_original = _d(keep.qty_original) + qty
+        for l in rest:
+            l.qty_remaining = ZERO
+    db.session.flush()
+    _sync_product_stock(product_id)
+    return row
 
 
 def record_out(product_id, voucher_type, voucher_id, voucher_number,
                qty, notes="", created_by=1, unit_cost=None):
-    """Stock issued; cost computed by the valuation method unless an explicit
-    cost basis is passed (purchase returns use the original invoice cost).
+    """Stock issued; cost computed from the layers unless an explicit cost
+    basis is passed (purchase returns use the original invoice cost).
 
     Returns (unit_cost, total_cost) so the caller can post the same value to
-    the general ledger.
+    the general ledger. That value is frozen once posted: nothing in this
+    module ever rewrites a row's unit_cost/total_cost.
+
+    Raises NegativeStockError if the issue is not covered by stock on hand
+    and ``allow_negative_stock`` is off.
     """
-    qty = Decimal(str(qty))
+    qty = _d(qty)
+    if qty <= 0:
+        return ZERO, ZERO
+
+    plan, uncovered = _plan_consumption(product_id, qty)
+    if uncovered > 0 and not _settings().allow_negative_stock:
+        raise NegativeStockError(
+            f"Cannot issue {qty} of product {product_id}: only "
+            f"{on_hand(product_id)} on hand. The uncovered {uncovered} "
+            f"unit(s) have no acquisition cost, so any value posted for them "
+            f"would be invented. Receive the stock first, or enable "
+            f"'allow negative stock' in Inventory Settings."
+        )
+
     if unit_cost is None:
         unit, total = cost_of_issue(product_id, qty)
     else:
         unit = _q(unit_cost)
         total = _q(qty * unit, 2)
-    _write_row(product_id, voucher_type, voucher_id, voucher_number,
-               "OUT", qty, unit, total, notes, created_by)
+
+    row = _write_row(product_id, voucher_type, voucher_id, voucher_number,
+                     "OUT", qty, unit, total, notes, created_by)
+
+    # Draw the quantity down against real layers and record what was taken
+    # from where, so every posted cost can be traced to its purchases.
+    for layer, take, layer_cost in plan:
+        layer.qty_remaining = _d(layer.qty_remaining) - take
+        # An explicit basis (purchase return) posts its own cost; the
+        # consumption row records the basis actually charged.
+        charged = unit if unit_cost is not None else layer_cost
+        db.session.add(LayerConsumption(
+            layer_id=layer.id, out_ledger_id=row.id, product_id=product_id,
+            qty=take, unit_cost=charged, total_cost=_q(take * charged, 2),
+        ))
+    db.session.flush()
+    _sync_product_stock(product_id)
     return unit, total
 
 
+def revalue_for_method_change(new_method, created_by=1):
+    """Switch valuation method as a REVALUATION — prospective only.
+
+    Called when the method changes in Inventory Settings. For every product
+    holding stock, the open layers are collapsed/carried at their CURRENT
+    book value:
+
+        WA -> FIFO   one open layer already; it carries forward untouched
+                     and later receipts open new layers.
+        FIFO -> WA   remaining layers collapse into one at
+                     total_value / total_qty, which IS book value.
+
+    Book value is identical before and after, so no cost that was already
+    computed and posted can change. Ledger rows are never touched — a row's
+    unit_cost/total_cost records what the method in force at the time
+    charged, and stays that way forever.
+    """
+    products = [r[0] for r in db.session.query(StockLayer.product_id)
+                .filter(StockLayer.qty_remaining > 0).distinct().all()]
+    for product_id in products:
+        layers = _open_layers(product_id)
+        if len(layers) <= 1:
+            # Already a single pool — nothing to collapse. Book value is
+            # whatever that layer holds, and it carries forward as-is.
+            continue
+        if new_method == "fifo":
+            # FIFO keeps distinct layers; the existing ones are already
+            # distinct and correctly costed. Nothing to do.
+            continue
+        total_qty = sum((_d(l.qty_remaining) for l in layers), ZERO)
+        total_value = sum((_d(l.qty_remaining) * _d(l.unit_cost) for l in layers), ZERO)
+        keep, rest = layers[0], layers[1:]
+        keep.qty_remaining = total_qty
+        keep.qty_original = total_qty
+        keep.unit_cost = _q(total_value / total_qty) if total_qty > 0 else ZERO
+        keep.method = new_method
+        keep.is_revaluation = True
+        keep.notes = (f"Revaluation: collapsed {len(layers)} layers on switch "
+                      f"to {new_method} at book value {_q(total_value, 2)}")
+        for l in rest:
+            l.qty_remaining = ZERO
+    db.session.flush()
+
+
+def assert_invariant(product_id):
+    """(ok, layer_value, running_cost) — layers must equal the ledger.
+
+    Any drift means a cost was posted that the layers cannot back, which is
+    exactly how an inventory control account silently stops tying to COGS.
+    Used by the costing tests.
+    """
+    _qty, running_cost, _avg = StockLedger.get_running_balance(product_id)
+    layer_value = stock_value(product_id)
+    return (abs(layer_value - _d(running_cost)) <= Decimal("0.01"),
+            layer_value, _d(running_cost))
+
+
 def rebuild_running(product_id):
-    """Recompute the running qty/cost/avg columns by replaying the ledger."""
+    """Recompute the running qty/cost/avg columns by replaying the ledger.
+
+    Only the running_* columns are touched. A row's unit_cost/total_cost is
+    what was posted to the general ledger and never changes.
+    """
     rows = StockLedger.query.filter_by(product_id=product_id).order_by(StockLedger.id.asc()).all()
     qty = cost = ZERO
     for r in rows:
-        rqty = Decimal(str(r.quantity))
-        rtotal = Decimal(str(r.total_cost))
+        rqty = _d(r.quantity)
+        rtotal = _d(r.total_cost)
         if r.transaction_type == "IN":
             qty += rqty
             cost += rtotal
@@ -207,19 +414,128 @@ def rebuild_running(product_id):
     _sync_product_stock(product_id)
 
 
-def reverse_voucher_stock(voucher_type, voucher_id):
-    """Remove a voucher's stock rows and rebuild affected products' history.
+def _resync_pool(product_id):
+    """Re-point the weighted-average pool at the ledger balance.
 
-    Used on unapprove: the voucher's effect disappears from the cost history
-    and every later running balance is recomputed from the surviving rows.
+    Only meaningful under weighted average, where the pool IS the ledger
+    balance: one layer holding running_qty at running_cost/running_qty.
+
+    Needed because a WA receipt merges into the open layer instead of opening
+    its own, so reversing that receipt has no layer to withdraw — the ledger
+    would drop the value while the layer kept it (reversing a merged 10 @ 20
+    left a layer worth 300 against a ledger of 100). FIFO layers are withdrawn
+    precisely by source_ledger_id and must not be touched here.
+    """
+    if _settings().is_fifo():
+        return
+    layers = _open_layers(product_id)
+    if not layers:
+        return
+    qty, cost, _avg = StockLedger.get_running_balance(product_id)
+    qty, cost = _d(qty), _d(cost)
+    keep, rest = layers[0], layers[1:]
+    for l in rest:
+        l.qty_remaining = ZERO
+    if qty <= 0:
+        keep.qty_remaining = ZERO
+    else:
+        keep.qty_remaining = qty
+        keep.unit_cost = _q(cost / qty)
+    db.session.flush()
+
+
+def consumers_of_voucher(voucher_type, voucher_id):
+    """Vouchers that drew cost from this one's layers: [(type, number, qty)].
+
+    Empty means the receipt's stock is untouched and it can be reversed
+    cleanly.
+    """
+    rows = (StockLedger.query
+            .filter_by(voucher_type=voucher_type, voucher_id=voucher_id,
+                       transaction_type="IN").all())
+    if not rows:
+        return []
+    layer_ids = [l.id for l in StockLayer.query.filter(
+        StockLayer.source_ledger_id.in_([r.id for r in rows])).all()]
+    if not layer_ids:
+        return []
+    out = []
+    for c in LayerConsumption.query.filter(
+            LayerConsumption.layer_id.in_(layer_ids)).all():
+        ledger_row = StockLedger.query.get(c.out_ledger_id)
+        if ledger_row is not None:
+            out.append((ledger_row.voucher_type, ledger_row.voucher_number, _d(c.qty)))
+    return out
+
+
+def reverse_voucher_stock(voucher_type, voucher_id):
+    """Remove a voucher's stock rows and give back what they consumed.
+
+    Layer quantities consumed by a reversed issue are restored, and layers
+    opened by a reversed receipt are withdrawn, so the pool matches the
+    surviving rows.
+
+    Raises ConsumedLayerError if the voucher received stock that has since
+    been issued — see that class for why this cannot be silently allowed.
     """
     rows = StockLedger.query.filter_by(voucher_type=voucher_type, voucher_id=voucher_id).all()
+    if not rows:
+        return
     product_ids = {r.product_id for r in rows}
+    row_ids = [r.id for r in rows]
+
+    dependents = consumers_of_voucher(voucher_type, voucher_id)
+    if dependents:
+        listed = ", ".join(f"{t} {n} ({q})" for t, n, q in dependents[:5])
+        more = f" and {len(dependents) - 5} more" if len(dependents) > 5 else ""
+        raise ConsumedLayerError(
+            f"Cannot reverse {voucher_type} #{voucher_id}: its stock has "
+            f"already been issued by {listed}{more}. Those issues posted a "
+            f"cost drawn from this receipt, and that posted cost cannot "
+            f"change. Reverse them first, then reverse this receipt.",
+            dependents=dependents,
+        )
+
+    # Under weighted average a receipt has no layer of its own — it merged into
+    # the pool — so the consumption check above cannot see it. Stock is
+    # fungible there, but withdrawing more than is still on hand necessarily
+    # takes back units that were already issued at a cost now posted and
+    # frozen. Refuse on quantity instead.
+    for r in rows:
+        if r.transaction_type != "IN":
+            continue
+        available = on_hand(r.product_id)
+        if _d(r.quantity) > available:
+            raise ConsumedLayerError(
+                f"Cannot reverse {voucher_type} #{voucher_id}: it received "
+                f"{_d(r.quantity)} unit(s) of product {r.product_id} but only "
+                f"{available} remain on hand, so part of it has already been "
+                f"issued at a cost that is now posted and cannot change. "
+                f"Reverse the issues that consumed it first."
+            )
+
+    # Give back quantity this voucher's issues took out of the layers.
+    consumptions = LayerConsumption.query.filter(
+        LayerConsumption.out_ledger_id.in_(row_ids)).all()
+    for c in consumptions:
+        layer = db.session.get(StockLayer, c.layer_id)
+        if layer is not None:
+            layer.qty_remaining = _d(layer.qty_remaining) + _d(c.qty)
+        db.session.delete(c)
+    db.session.flush()
+
+    # Withdraw layers this voucher's receipts opened. Safe: no consumption
+    # references them, or the guard above would have refused.
+    for layer in StockLayer.query.filter(StockLayer.source_ledger_id.in_(row_ids)).all():
+        db.session.delete(layer)
+    db.session.flush()
+
     for r in rows:
         db.session.delete(r)
     db.session.flush()
     for pid in product_ids:
         rebuild_running(pid)
+        _resync_pool(pid)
 
 
 def ensure_opening_balances(created_by=1):
@@ -239,3 +555,27 @@ def ensure_opening_balances(created_by=1):
                   qty=p.current_stock, unit_cost=p.cost_price or 0,
                   notes="Opening balance (pre-costing-engine stock)",
                   created_by=created_by)
+
+
+def backfill_layers(created_by=1):
+    """Give products with ledger history but no layers an opening layer.
+
+    Bridges stock that the replay-based engine tracked before layers
+    existed: one layer per product at current book value, so the invariant
+    (layer value == running_cost) holds from here on. Idempotent.
+    """
+    product_ids = [r[0] for r in db.session.query(StockLedger.product_id).distinct().all()]
+    for pid in product_ids:
+        if StockLayer.query.filter_by(product_id=pid).first():
+            continue
+        qty, cost, _avg = StockLedger.get_running_balance(pid)
+        qty, cost = _d(qty), _d(cost)
+        if qty <= 0:
+            continue
+        db.session.add(StockLayer(
+            product_id=pid, source_ledger_id=None,
+            unit_cost=_q(cost / qty), qty_original=qty, qty_remaining=qty,
+            method=_settings().valuation_method, is_revaluation=True,
+            notes="Opening layer at book value (pre-layer-engine stock)",
+        ))
+    db.session.flush()

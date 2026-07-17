@@ -295,7 +295,19 @@ def save_inventory():
         return denied
     s = InventorySettings.get()
     method = request.form.get("valuation_method", "weighted_average")
-    s.valuation_method = method if method in ("weighted_average", "fifo") else "weighted_average"
+    method = method if method in ("weighted_average", "fifo") else "weighted_average"
+    # A method change is a REVALUATION, not a re-reading of history: stock on
+    # hand carries forward at its current book value so nothing already
+    # computed and posted can shift. Must run while the OLD method is still in
+    # force, then the new method governs receipts from here on.
+    if method != s.valuation_method:
+        from shared.costing import revalue_for_method_change
+        revalue_for_method_change(method)
+        flash(f"Valuation method changed to "
+              f"{'FIFO' if method == 'fifo' else 'weighted average'}. Stock on "
+              f"hand was revalued at book value; previously posted costs are "
+              f"unchanged.", "success")
+    s.valuation_method = method
     s.allow_negative_stock = request.form.get("allow_negative_stock") == "on"
     s.auto_generate_vouchers = request.form.get("auto_generate_vouchers") == "on"
     s.decimal_places = min(max(request.form.get("decimal_places", 4, type=int), 0), 6)

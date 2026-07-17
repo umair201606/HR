@@ -153,6 +153,22 @@ a:hover{{background:#1d4ed8}}
         msg = messages.get(e.code, e.description or "Something went wrong.")
         return _friendly_error_page(e.code, e.name, msg), e.code
 
+    from shared.costing import NegativeStockError, ConsumedLayerError
+
+    @app.errorhandler(NegativeStockError)
+    @app.errorhandler(ConsumedLayerError)
+    def handle_costing_refusal(e):
+        # Not a crash: the costing engine refused an operation that would have
+        # posted a cost it cannot back. Every stock-moving route can raise
+        # these, so they are handled once here rather than wrapped at each of
+        # the ~20 call sites. Roll back first — the request died mid-transaction
+        # and the partial voucher must not survive.
+        from flask import flash
+        from shared.extensions import db as _db
+        _db.session.rollback()
+        flash(str(e), "error")
+        return redirect(request.referrer or url_for("dashboard.hub"))
+
     @app.errorhandler(Exception)
     def handle_all(e):
         # Genuine unexpected server error — keep the traceback (useful while the
@@ -194,6 +210,7 @@ def _migrate_schema(db):
         ("users", "login_id", "VARCHAR(120)"),
         ("consumption_vouchers", "charge_account_id", "INTEGER"),
         ("scrap_vouchers", "charge_account_id", "INTEGER"),
+        ("stock_ledger", "valuation_method", "VARCHAR(20)"),
         ("chart_of_accounts", "cash_flow_activity", "VARCHAR(20)"),
         ("chart_of_accounts", "pl_section", "VARCHAR(30)"),
         ("inv_invoices", "party_account_id", "INTEGER"),
@@ -268,6 +285,7 @@ def _seed_all_data(app):
         from shared.models.base import User, Role, Permission
         from shared.models.ledger import ChartOfAccount
         from shared.models.stock_ledger import VoucherNumber, StockLedger
+        from shared.models.stock_layer import StockLayer, LayerConsumption
         from shared.models.inventory_settings import InventorySettings
 
         # Run schema migrations FIRST, before any ORM query, so model columns
@@ -361,6 +379,7 @@ def _seed_all_data(app):
         from inventory_app.models.category import InvCategory
         from inventory_app.models.supplier import InvSupplier
         from inventory_app.models.customer import InvCustomer
+        from inventory_app.models.unit import InvUnit
 
         cat_names = ["Solar Panels", "Inverters", "Batteries", "Cables & Wiring", "Mounting Structures",
                      "Electrical Components", "Tools & Equipment", "Safety Gear"]
@@ -372,6 +391,27 @@ def _seed_all_data(app):
                 db.session.add(c)
                 db.session.flush()
             cat_map[cn] = c.id
+
+        unit_seed = [
+            ("Piece", "pcs", "Individual unit count"),
+            ("Kilogram", "kg", "Weight in kilograms"),
+            ("Gram", "g", "Weight in grams"),
+            ("Meter", "m", "Length in meters"),
+            ("Liter", "l", "Volume in liters"),
+            ("Box", "box", "Box or carton"),
+            ("Set", "set", "Complete set"),
+            ("Pair", "pair", "Two units"),
+            ("Dozen", "doz", "12 units"),
+            ("Square Meter", "sqm", "Area measurement"),
+            ("Kilowatt", "kW", "Power rating"),
+            ("Watt", "W", "Power rating"),
+            ("Ampere", "A", "Current measurement"),
+            ("Volt", "V", "Voltage measurement"),
+        ]
+        for name, abbr, expl in unit_seed:
+            if not InvUnit.query.filter_by(name=name).first():
+                db.session.add(InvUnit(name=name, abbreviation=abbr, explanation=expl))
+        db.session.flush()
 
         for sku, name, cat, price, cost, stock, reorder in [
             ("SOL-MONO-450", "Monocrystalline Solar Panel 450W", cat_names[0], 32000, 28000, 50, 10),
@@ -457,8 +497,11 @@ def _seed_all_data(app):
 
         # Costing engine: products holding stock from before the engine get an
         # opening cost layer so every future issue has a historic cost basis.
-        from shared.costing import ensure_opening_balances
+        from shared.costing import ensure_opening_balances, backfill_layers
         ensure_opening_balances(created_by=1)
+        # Stock tracked before cost layers existed gets one layer at current
+        # book value, so layer value == ledger running_cost from here on.
+        backfill_layers(created_by=1)
 
         db.session.commit()
         print("Seed data OK")
