@@ -369,6 +369,123 @@ def test_reversing_an_issue_under_weighted_average_ties(settings, product):
     assert_ties("after reversing a WA issue")
 
 
+# ─────────────────────────────────────────────
+# Variance: deleting a consumed receipt anyway
+# ─────────────────────────────────────────────
+
+def test_variance_lets_a_consumed_receipt_be_reversed(settings, product):
+    """The case that is refused without allow_variance.
+
+    Buy 10 @ 10 and 10 @ 20, sell 10 (FIFO: COGS 100 from the first layer),
+    then delete the 10 @ 10 purchase. It never happened — but 100 was posted
+    against it and conveyed. The 10 units sold must now come out of the 20-cost
+    layer, which is worth 200, while the posted COGS stays 100. The 100 gap is
+    the variance.
+    """
+    settings.valuation_method = "fifo"
+    db.session.commit()
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)
+    _u, cogs = issue(10, n=1)
+    assert cogs == Decimal("100.00")
+
+    variances = costing.reverse_voucher_stock("PI", 1, allow_variance=True)
+    db.session.commit()
+
+    assert variances[1] == Decimal("100.00"), \
+        "200 of surviving purchase, 100 expensed, nothing left = 100 unhomed"
+    assert costing.on_hand(1) == 0
+    assert costing.stock_value(1) == 0
+    assert_ties("after reversing a consumed receipt with a variance")
+
+    sale = StockLedger.query.filter_by(voucher_type="SI").one()
+    assert sale.total_cost == cogs, "the posted COGS must not be restated"
+
+
+def test_variance_writes_a_value_only_ledger_row(settings, product):
+    settings.valuation_method = "fifo"
+    db.session.commit()
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)
+    issue(10, n=1)
+    costing.reverse_voucher_stock("PI", 1, allow_variance=True)
+    db.session.commit()
+
+    var = StockLedger.query.filter_by(voucher_type="VAR").one()
+    assert var.quantity == 0, "a variance moves value, not stock"
+    assert var.total_cost == Decimal("100.00")
+    assert "no remaining purchase" in var.notes
+
+
+def test_no_variance_when_the_reversed_receipt_was_untouched(settings, product):
+    settings.valuation_method = "fifo"
+    db.session.commit()
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)
+
+    variances = costing.reverse_voucher_stock("PI", 2, allow_variance=True)
+    db.session.commit()
+
+    assert variances == {}, "nothing consumed it, so nothing is unaccounted for"
+    assert StockLedger.query.filter_by(voucher_type="VAR").count() == 0
+    assert_ties("after a clean reversal under allow_variance")
+
+
+def test_weighted_average_absorbs_the_gap_into_the_surviving_units(settings, product):
+    """Under WA the pool re-averages rather than writing off.
+
+    Buy 10 @ 10 and 10 @ 20 (pool 20 @ 15), sell 5 at 15, then delete the
+    10 @ 10 purchase. 200 was bought and 75 expensed, so the 5 units left carry
+    125 — an average of 25. The posted 75 does not move; the future re-prices.
+    """
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)
+    _u, cogs = issue(5, n=1)
+    assert cogs == Decimal("75.00")
+
+    variances = costing.reverse_voucher_stock("PI", 1, allow_variance=True)
+    db.session.commit()
+
+    assert variances == {}, "with units left, WA re-averages instead"
+    assert costing.on_hand(1) == 5
+    assert costing.current_unit_cost(1) == Decimal("25.0000")
+    assert_ties("after WA absorbs the gap")
+
+    sale = StockLedger.query.filter_by(voucher_type="SI").one()
+    assert sale.total_cost == cogs, "the posted COGS must not be restated"
+
+
+def test_weighted_average_writes_off_when_no_units_remain(settings, product):
+    """With nothing left to absorb the gap, WA must write it off.
+
+    The qty==0 clamp zeroes running_cost, so a variance computed from
+    running_cost would read zero here while 50 is genuinely unaccounted for.
+    """
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)
+    issue(10, n=1)            # WA: 10 @ 15 = 150 posted
+
+    variances = costing.reverse_voucher_stock("PI", 1, allow_variance=True)
+    db.session.commit()
+
+    assert costing.on_hand(1) == 0
+    assert variances[1] == Decimal("50.00"), \
+        "200 bought, 150 expensed, nothing on hand = 50 unhomed"
+    assert_ties("after WA write-off")
+
+
+def test_reversal_still_refuses_by_default(settings, product):
+    """allow_variance is opt-in: the safe path stays the default."""
+    settings.valuation_method = "fifo"
+    db.session.commit()
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)
+    issue(10, n=1)
+
+    with pytest.raises(costing.ConsumedLayerError):
+        costing.reverse_voucher_stock("PI", 1)
+
+
 def test_reversal_names_the_vouchers_that_consumed_the_stock(settings, product):
     settings.valuation_method = "fifo"
     db.session.commit()

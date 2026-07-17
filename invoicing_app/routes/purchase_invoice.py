@@ -292,11 +292,25 @@ def unapprove_invoice(id):
 
     # Remove this invoice's purchase layers from the cost history and rebuild
     # each product's running balances (also re-syncs current_stock).
-    reverse_voucher_stock("PI", inv.id)
+    #
+    # allow_variance: stock from this invoice may already have been issued, and
+    # that issue posted a cost drawn from it which cannot now be restated. The
+    # difference is booked to Inventory Cost Variance rather than blocking the
+    # unapprove or letting inventory drift away from COGS.
+    from shared.ledger_utils import post_variance_journal
+    variances = reverse_voucher_stock("PI", inv.id, allow_variance=True,
+                                      created_by=current_user.id)
+    post_variance_journal(variances, inv.invoice_number, current_user.id)
 
     db.session.commit()
-    return jsonify({"ok": True, "status": "unapproved",
-                    "message": "Invoice has been unapproved and unlocked for editing"})
+    message = "Invoice has been unapproved and unlocked for editing"
+    if variances:
+        total = sum(variances.values())
+        message += (f". {abs(total):,.2f} was booked to Inventory Cost Variance: "
+                    f"stock from this invoice had already been issued at a cost "
+                    f"that is already posted and cannot be changed")
+    return jsonify({"ok": True, "status": "unapproved", "message": message,
+                    "variance": float(sum(variances.values())) if variances else 0})
 
 
 @inv_pinv_bp.route("/delete/<int:id>", methods=["POST"])

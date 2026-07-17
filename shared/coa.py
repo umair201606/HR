@@ -138,6 +138,11 @@ FIXED_ACCOUNTS = [
     ("5-01-02-01-0001", "Scrap / Write-off",             "expense",   None,        None),
     ("5-01-02-01-0002", "Inventory Adjustment",          "expense",   None,        None),
     ("5-01-02-01-0003", "Consumption Expense",           "expense",   None,        None),
+    # Where a retroactive change lands. Deleting a receipt whose stock was
+    # already issued leaves a posted cost backed by a purchase that no longer
+    # exists; the difference is booked here rather than restating the frozen
+    # cost or silently untying inventory from COGS.
+    ("5-01-02-01-0004", "Inventory Cost Variance",       "expense",   None,        None),
     ("5-02",            "Administrative Expenses",       "expense",   None,        "admin"),
     ("5-02-01",         "Salaries & Benefits",           "expense",   None,        None),
     ("5-02-01-01",      "Salaries & Benefits",           "expense",   None,        None),
@@ -195,6 +200,7 @@ ROLE_CODES = {
     "sales_tax_payable": "2-01-03-01-0001",
     "revenue":           "4-01-01-01-0001",
     "cogs":              "5-01-01-01-0001",
+    "inventory_variance": "5-01-02-01-0004",
 }
 
 # Entity subledger kinds -> level-4 parent code. Entity accounts are level-5

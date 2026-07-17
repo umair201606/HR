@@ -22,6 +22,7 @@ POSTING_ACCOUNTS = {
     "sales_tax_payable": ("Output Sales Tax", "liability", ["6500", "213"]),
     "revenue":           ("Sales — General", "revenue", ["4000", "411"]),
     "cogs":              ("Cost of Goods Sold", "expense", ["5000", "511"]),
+    "inventory_variance": ("Inventory Cost Variance", "expense", ["5900"]),
 }
 
 
@@ -127,6 +128,43 @@ def reverse_journal_entry(voucher_type, voucher_id, created_by=1):
     for entry in entries:
         entry.is_posted = False
     db.session.flush()
+
+
+def post_variance_journal(variances, voucher_number, created_by=1):
+    """Book the value a reversal left with no purchase to back it.
+
+    ``variances`` is {product_id: amount} from
+    ``costing.reverse_voucher_stock(..., allow_variance=True)``. A positive
+    amount is value the books still carry but no stock backs, so it is expensed
+    to Inventory Cost Variance and taken off Inventory.
+
+    This is what lets a consumed receipt be withdrawn at all: the cost its issue
+    posted stays frozen (it was reported, and conveyed to someone), while the
+    difference lands in one visible account instead of quietly untying the
+    inventory control account from COGS.
+    """
+    total = sum(Decimal(str(v)) for v in variances.values())
+    if not total:
+        return None
+    variance_acct = posting_account("inventory_variance")
+    inventory_acct = posting_account("inventory")
+    amount = abs(total)
+    write_off = total > 0
+    return post_journal_entry(
+        voucher_type="VAR", voucher_id=0,
+        voucher_number=f"VAR-{voucher_number}",
+        description=(f"Inventory cost variance on reversal of {voucher_number}: "
+                     f"value with no remaining purchase to back it"),
+        lines=[
+            {"account_id": variance_acct.id if write_off else inventory_acct.id,
+             "debit": amount, "credit": 0,
+             "description": f"Reversal of {voucher_number}"},
+            {"account_id": inventory_acct.id if write_off else variance_acct.id,
+             "debit": 0, "credit": amount,
+             "description": f"Reversal of {voucher_number}"},
+        ],
+        created_by=created_by,
+    )
 
 
 # ── Per-entity level-5 subledger accounts ───────────────────────────────────

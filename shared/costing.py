@@ -444,6 +444,78 @@ def _resync_pool(product_id):
     db.session.flush()
 
 
+def _unaccounted_value(product_id):
+    """Value received, less value expensed out, less value still on the shelf.
+
+    Zero when the books tie. Non-zero only after a retroactive change, where it
+    is the money a posted cost can no longer account for. Reads the frozen row
+    costs directly rather than running_cost, which is clamped to zero whenever
+    quantity reaches zero.
+    """
+    rows = StockLedger.query.filter_by(product_id=product_id).all()
+    received = sum((_d(r.total_cost) for r in rows if r.transaction_type == "IN"), ZERO)
+    issued = sum((_d(r.total_cost) for r in rows if r.transaction_type == "OUT"), ZERO)
+    return received - issued - stock_value(product_id)
+
+
+def _reconcile_to_variance(product_id, voucher_number, created_by=1):
+    """Realign the layers with the ledger after a retroactive change; return
+    the value that no longer has a home.
+
+    Withdrawing a receipt whose stock was already issued leaves two
+    inconsistencies:
+
+      quantity  the issue drew from a layer that no longer exists, so the
+                layers hold MORE units than the ledger says are on hand. The
+                surplus is re-drawn from the surviving layers, oldest first —
+                a quantity move only. No posted cost is touched.
+
+      value     the issue's cost stays frozen at what it charged (correct: it
+                was posted, and conveyed), but the stock that actually left is
+                worth what the surviving layers cost. The gap is real money.
+
+    That gap is returned as the variance. A value-only ledger row (quantity 0,
+    carrying just the cost) records it against the product so the ledger's
+    running_cost lands back on the layers' value, and the caller posts the
+    matching journal entry.
+    """
+    layer_qty = sum((_d(l.qty_remaining) for l in _open_layers(product_id)), ZERO)
+    ledger_qty = on_hand(product_id)
+
+    # Quantity: re-draw the surplus from surviving layers, oldest first.
+    surplus = layer_qty - ledger_qty
+    if surplus > 0:
+        for layer in _open_layers(product_id):
+            if surplus <= 0:
+                break
+            take = min(_d(layer.qty_remaining), surplus)
+            layer.qty_remaining = _d(layer.qty_remaining) - take
+            surplus -= take
+        db.session.flush()
+
+    # Value: what was received, less what was expensed out, less what is still
+    # on the shelf. Anything left over has no home.
+    #
+    # Deliberately NOT running_cost - stock_value: _write_row zeroes
+    # running_cost whenever quantity hits zero, which is exactly the case a
+    # reversal creates, so that reading would report no variance at the moment
+    # one certainly exists. This arithmetic survives the clamp. It also stays
+    # correct under weighted average, where _resync_pool has already folded any
+    # gap into the surviving units' average and there is genuinely nothing left
+    # to write off.
+    variance = _unaccounted_value(product_id)
+    if abs(variance) <= Decimal("0.01"):
+        return ZERO
+
+    _write_row(product_id, "VAR", 0, voucher_number,
+               "OUT" if variance > 0 else "IN", ZERO, ZERO, abs(variance),
+               f"Cost variance on reversal of {voucher_number}: value with no "
+               f"remaining purchase to back it", created_by)
+    db.session.flush()
+    _sync_product_stock(product_id)
+    return variance
+
+
 def consumers_of_voucher(voucher_type, voucher_id):
     """Vouchers that drew cost from this one's layers: [(type, number, qty)].
 
@@ -468,24 +540,34 @@ def consumers_of_voucher(voucher_type, voucher_id):
     return out
 
 
-def reverse_voucher_stock(voucher_type, voucher_id):
+def reverse_voucher_stock(voucher_type, voucher_id, allow_variance=False,
+                          created_by=1):
     """Remove a voucher's stock rows and give back what they consumed.
 
     Layer quantities consumed by a reversed issue are restored, and layers
     opened by a reversed receipt are withdrawn, so the pool matches the
     surviving rows.
 
-    Raises ConsumedLayerError if the voucher received stock that has since
-    been issued — see that class for why this cannot be silently allowed.
+    If the voucher received stock that has since been issued, the issue's cost
+    was posted from a purchase that is about to disappear:
+
+        allow_variance=False  refuse (ConsumedLayerError). Safe default: the
+                              caller reverses the dependent issues first.
+        allow_variance=True   proceed, and book the difference to Inventory
+                              Cost Variance rather than restating the frozen
+                              cost or letting inventory drift from COGS.
+
+    Returns {product_id: variance} for whatever had to be written off.
     """
     rows = StockLedger.query.filter_by(voucher_type=voucher_type, voucher_id=voucher_id).all()
     if not rows:
-        return
+        return {}
     product_ids = {r.product_id for r in rows}
     row_ids = [r.id for r in rows]
+    voucher_number = rows[0].voucher_number
 
     dependents = consumers_of_voucher(voucher_type, voucher_id)
-    if dependents:
+    if dependents and not allow_variance:
         listed = ", ".join(f"{t} {n} ({q})" for t, n, q in dependents[:5])
         more = f" and {len(dependents) - 5} more" if len(dependents) > 5 else ""
         raise ConsumedLayerError(
@@ -502,7 +584,7 @@ def reverse_voucher_stock(voucher_type, voucher_id):
     # takes back units that were already issued at a cost now posted and
     # frozen. Refuse on quantity instead.
     for r in rows:
-        if r.transaction_type != "IN":
+        if r.transaction_type != "IN" or allow_variance:
             continue
         available = on_hand(r.product_id)
         if _d(r.quantity) > available:
@@ -524,18 +606,40 @@ def reverse_voucher_stock(voucher_type, voucher_id):
         db.session.delete(c)
     db.session.flush()
 
-    # Withdraw layers this voucher's receipts opened. Safe: no consumption
-    # references them, or the guard above would have refused.
-    for layer in StockLayer.query.filter(StockLayer.source_ledger_id.in_(row_ids)).all():
+    # Withdraw layers this voucher's receipts opened, along with any
+    # consumption that drew from them — with allow_variance those exist, and
+    # _reconcile_to_variance re-draws their quantity from the surviving layers.
+    #
+    # FIFO only. Under weighted average the open layer is a SHARED pool that
+    # later receipts merged into, and source_ledger_id still names whichever
+    # receipt happened to open it — so deleting "this voucher's layer" would
+    # throw away every other receipt's value with it (reversing the first of
+    # two receipts destroyed the second's 200 as well). There, the pool is left
+    # alone and _resync_pool re-points it at the surviving ledger.
+    doomed = (StockLayer.query.filter(StockLayer.source_ledger_id.in_(row_ids)).all()
+              if _settings().is_fifo() else [])
+    if doomed:
+        LayerConsumption.query.filter(
+            LayerConsumption.layer_id.in_([l.id for l in doomed])
+        ).delete(synchronize_session=False)
+        db.session.flush()
+    for layer in doomed:
         db.session.delete(layer)
     db.session.flush()
 
     for r in rows:
         db.session.delete(r)
     db.session.flush()
+
+    variances = {}
     for pid in product_ids:
         rebuild_running(pid)
         _resync_pool(pid)
+        if allow_variance:
+            v = _reconcile_to_variance(pid, voucher_number, created_by)
+            if v:
+                variances[pid] = v
+    return variances
 
 
 def ensure_opening_balances(created_by=1):

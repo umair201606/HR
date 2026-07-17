@@ -160,14 +160,20 @@ a:hover{{background:#1d4ed8}}
     @app.errorhandler(ConsumedLayerError)
     @app.errorhandler(ClosedPeriodError)
     def handle_costing_refusal(e):
-        # Not a crash: the costing engine refused an operation that would have
-        # posted a cost it cannot back. Every stock-moving route can raise
-        # these, so they are handled once here rather than wrapped at each of
-        # the ~20 call sites. Roll back first — the request died mid-transaction
-        # and the partial voucher must not survive.
-        from flask import flash
+        # Not a crash: the engine refused an operation that would have posted a
+        # cost it cannot back, or touched a closed period. Every stock-moving
+        # route can raise these, so they are handled once here rather than
+        # wrapped at each of the ~20 call sites. Roll back first — the request
+        # died mid-transaction and the partial voucher must not survive.
+        from flask import flash, jsonify
         from shared.extensions import db as _db
         _db.session.rollback()
+        # The unapprove endpoints are fetch()-driven and parse the body as
+        # JSON; handing them a redirect to an HTML page fails silently in the
+        # browser and looks like nothing happened.
+        if request.accept_mimetypes.best_match(["application/json", "text/html"]) \
+                == "application/json":
+            return jsonify({"ok": False, "error": str(e)}), 409
         flash(str(e), "error")
         return redirect(request.referrer or url_for("dashboard.hub"))
 
