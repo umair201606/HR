@@ -1,0 +1,60 @@
+{% extends "layouts/base_invoicing.html" %}
+{% block title %}Sales Returns{% endblock %}
+{% block page_title %}Sales Returns (Credit Notes){% endblock %}
+{% block content %}
+<div class="page-header">
+  <a href="{{ url_for('inv_sales_return.return_form') }}" class="btn btn-primary" style="background:#dc2626;">+ New Return</a>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Return #</th>
+          <th>Original Invoice</th>
+          <th>Customer</th>
+          <th>Date</th>
+          <th>Gross Return</th>
+          <th>Net Return</th>
+          <th>Cost Returned</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ret in returns %}
+        <tr>
+          <td><strong>{{ ret.return_number }}</strong></td>
+          <td>{{ ret.original_invoice.invoice_number if ret.original_invoice else '-' }}</td>
+          <td>{{ ret.customer.name if ret.customer else '-' }}</td>
+          <td>{{ ret.created_at.strftime('%Y-%m-%d') if ret.created_at else '' }}</td>
+          <td>{{ "%.2f"|format(ret.gross_return_value or 0) }}</td>
+          <td>{{ "%.2f"|format(ret.net_return_amount or 0) }}</td>
+          <td>{{ "%.2f"|format(ret.total_cost_returned or 0) }}</td>
+          <td>
+            <span class="badge badge-{{ ret.status }}">
+              {% if ret.status == 'new' %}New
+              {% elif ret.status == 'unapproved' %}Unapproved
+              {% elif ret.status == 'approved' %}Approved
+              {% else %}{{ ret.status }}{% endif %}
+            </span>
+          </td>
+          <td class="actions">
+            <a href="{{ url_for('inv_sales_return.return_form', id=ret.id) }}" class="btn btn-sm btn-outline">
+              {{ 'View' if ret.status == 'approved' else 'Edit' }}
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="empty">No sales returns</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<style>
+.badge-new { background:#f1f5f9; color:#475569; }
+.badge-unapproved { background:#fef3c7; color:#92400e; }
+.badge-approved { background:#dcfce7; color:#16a34a; }
+</style>
+{% endblock %}

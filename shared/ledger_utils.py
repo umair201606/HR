@@ -23,6 +23,7 @@ POSTING_ACCOUNTS = {
     "revenue":           ("Sales — General", "revenue", ["4000", "411"]),
     "cogs":              ("Cost of Goods Sold", "expense", ["5000", "511"]),
     "inventory_variance": ("Inventory Cost Variance", "expense", ["5900"]),
+    "sales_returns":     ("Sales Returns — General", "revenue", ["4100"]),
 }
 
 

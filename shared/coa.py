@@ -201,6 +201,7 @@ ROLE_CODES = {
     "revenue":           "4-01-01-01-0001",
     "cogs":              "5-01-01-01-0001",
     "inventory_variance": "5-01-02-01-0004",
+    "sales_returns":     "4-02-01-01-0001",
 }
 
 # Entity subledger kinds -> level-4 parent code. Entity accounts are level-5

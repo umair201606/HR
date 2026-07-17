@@ -7,6 +7,7 @@ from .purchase_order import InvPurchaseOrder, InvPurchaseOrderItem
 from .purchase_invoice import InvPurchaseInvoice, InvPurchaseInvoiceItem
 from .purchase_return import InvPurchaseReturn, InvPurchaseReturnItem
 from .sales_order import InvSalesOrder, InvSalesOrderItem
+from .sales_return import InvSalesReturn, InvSalesReturnItem
 from .stock_movement import InvStockMovement
 from .invoice import InvInvoice
 from .unit import InvUnit

@@ -9,6 +9,7 @@ def register_invoicing_blueprints(app):
     from .routes.invoices import inv_inv_bp
     from .routes.purchase_invoice import inv_pinv_bp
     from .routes.purchase_return import inv_preturn_bp
+    from .routes.sales_return import inv_sreturn_bp
 
     app.register_blueprint(invoicing_bp)
     app.register_blueprint(inv_sup_bp)
@@ -18,4 +19,5 @@ def register_invoicing_blueprints(app):
     app.register_blueprint(inv_inv_bp)
     app.register_blueprint(inv_pinv_bp)
     app.register_blueprint(inv_preturn_bp)
+    app.register_blueprint(inv_sreturn_bp)
     return app

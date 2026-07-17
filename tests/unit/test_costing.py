@@ -370,6 +370,126 @@ def test_reversing_an_issue_under_weighted_average_ties(settings, product):
 
 
 # ─────────────────────────────────────────────
+# Sales returns: goods coming back from a customer
+# ─────────────────────────────────────────────
+
+def test_original_issue_cost_reads_the_frozen_cost(settings, product):
+    settings.valuation_method = "fifo"
+    db.session.commit()
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)
+    _u, cogs = issue(10, n=1)
+
+    assert costing.original_issue_cost("SI", 1, 1) == Decimal("10.0000")
+    assert costing.original_issue_cost("SI", 1, 1) * 10 == cogs
+    # Today's valuation has moved on; a return must not use it.
+    assert costing.current_unit_cost(1) == Decimal("20.0000")
+
+
+def test_original_issue_cost_is_none_for_a_voucher_that_issued_nothing(settings, product):
+    buy(10, 10, n=1)
+    assert costing.original_issue_cost("SI", 99, 1) is None
+
+
+def test_sell_then_return_is_value_neutral(settings, product):
+    """The round trip must change nothing.
+
+    Returning at today's valuation (20) rather than the cost it sold at (10)
+    would put 200 back for stock that left at 100 — inventing 100 of inventory
+    from a sale and its own reversal.
+    """
+    settings.valuation_method = "fifo"
+    db.session.commit()
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)
+    _u, cogs = issue(10, n=1)
+
+    basis = costing.original_issue_cost("SI", 1, 1)
+    costing.record_in(1, "SRV", 1, "CN-000001", qty=10, unit_cost=basis)
+    db.session.commit()
+
+    assert costing.on_hand(1) == 20
+    assert costing.stock_value(1) == Decimal("300.0000"), \
+        "purchases were 300; a sale and its return must net to zero"
+    assert_ties("after sell + return")
+
+
+def test_returned_goods_form_a_new_layer_at_the_sold_cost(settings, product):
+    """A return is a RECEIPT priced at the original cost, not an un-sale.
+
+    It opens a new layer dated now rather than reinstating the layer the sale
+    consumed, so later FIFO issues take the older purchase first. This is what
+    SAP and NetSuite do: the goods are back in stock as of today, and the
+    system cannot know they are the same physical units.
+    """
+    settings.valuation_method = "fifo"
+    db.session.commit()
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)
+    issue(10, n=1)                      # eats the 10-cost layer
+    basis = costing.original_issue_cost("SI", 1, 1)
+    costing.record_in(1, "SRV", 1, "CN-000001", qty=10, unit_cost=basis)
+    db.session.commit()
+
+    assert costing.layers_remaining(1) == [(Decimal("20.0000"), Decimal("10.0000")),
+                                           (Decimal("10.0000"), Decimal("10.0000"))]
+    _u, next_cogs = issue(10, n=2)
+    assert next_cogs == Decimal("200.00"), \
+        "the 20-cost purchase is older, so FIFO issues it before the return"
+    assert_ties("after re-selling")
+
+
+def test_weighted_average_return_reaverages_at_the_sold_cost(settings, product):
+    buy(10, 10, n=1)
+    buy(10, 20, n=2)                    # pool 20 @ 15
+    _u, cogs = issue(10, n=1)           # 10 @ 15 = 150; pool 10 @ 15
+    assert cogs == Decimal("150.00")
+
+    basis = costing.original_issue_cost("SI", 1, 1)
+    assert basis == Decimal("15.0000")
+    costing.record_in(1, "SRV", 1, "CN-000001", qty=10, unit_cost=basis)
+    db.session.commit()
+
+    assert costing.on_hand(1) == 20
+    assert costing.current_unit_cost(1) == Decimal("15.0000"), \
+        "returning at the cost it left at leaves the average untouched"
+    assert costing.stock_value(1) == Decimal("300.0000")
+    assert_ties("after WA return")
+
+
+def test_reversing_a_sales_return_withdraws_the_returned_stock(settings, product):
+    settings.valuation_method = "fifo"
+    db.session.commit()
+    buy(10, 10, n=1)
+    issue(10, n=1)
+    basis = costing.original_issue_cost("SI", 1, 1)
+    costing.record_in(1, "SRV", 1, "CN-000001", qty=10, unit_cost=basis)
+    db.session.commit()
+    assert costing.on_hand(1) == 10
+
+    costing.reverse_voucher_stock("SRV", 1)
+    db.session.commit()
+
+    assert costing.on_hand(1) == 0
+    assert costing.stock_value(1) == 0
+    assert_ties("after reversing a sales return")
+
+
+def test_reversing_a_resold_sales_return_is_refused(settings, product):
+    """The returned stock was sold again; that sale's cost came from it."""
+    settings.valuation_method = "fifo"
+    db.session.commit()
+    buy(10, 10, n=1)
+    issue(10, n=1)
+    basis = costing.original_issue_cost("SI", 1, 1)
+    costing.record_in(1, "SRV", 1, "CN-000001", qty=10, unit_cost=basis)
+    issue(10, n=2)                      # re-sold the returned goods
+
+    with pytest.raises(costing.ConsumedLayerError):
+        costing.reverse_voucher_stock("SRV", 1)
+
+
+# ─────────────────────────────────────────────
 # Variance: deleting a consumed receipt anyway
 # ─────────────────────────────────────────────
 

@@ -444,6 +444,26 @@ def _resync_pool(product_id):
     db.session.flush()
 
 
+def original_issue_cost(voucher_type, voucher_id, product_id):
+    """Unit cost a product was ISSUED at on a given voucher, or None.
+
+    What a sales return needs: goods coming back from a customer must re-enter
+    stock at the cost they left at, not at today's valuation. Selling a unit at
+    a cost of 10 and taking it back at a current average of 18 would invent 8 of
+    inventory value out of a round trip that changed nothing, and the COGS
+    reversal would not match the COGS that was posted.
+
+    Reads the frozen unit_cost off the issue's own ledger row, so it stays
+    correct however long ago the sale was and whatever the valuation method has
+    done since.
+    """
+    row = (StockLedger.query
+           .filter_by(voucher_type=voucher_type, voucher_id=voucher_id,
+                      product_id=product_id, transaction_type="OUT")
+           .order_by(StockLedger.id.asc()).first())
+    return _d(row.unit_cost) if row is not None else None
+
+
 def _unaccounted_value(product_id):
     """Value received, less value expensed out, less value still on the shelf.
 

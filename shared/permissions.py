@@ -35,9 +35,10 @@ MODULES = [
         ("customers", "Customers"),
         ("purchase_orders", "Purchase Orders"),
         ("sales_orders", "Sales Orders"),
-        ("purchase_invoices", "Purchase Invoices"),
+        ("purchase_invoices", "Procurement"),
         ("purchase_returns", "Purchase Returns"),
-        ("sales_invoices", "Sales Invoices"),
+        ("sales_invoices", "Sales"),
+        ("sales_returns", "Sales Returns"),
     ]),
     ("finance", "Finance", "has_finance_access", [
         ("financial_reports", "Financial Reports"),

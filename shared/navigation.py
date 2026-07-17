@@ -198,6 +198,9 @@ NAV = {
                  "label": lambda ctx: ("Invoice Against SO" if ctx.get("sales_flow") == "with_so"
                                        else "Sales Invoice"),
                  "active": {"prefix": "inv_invoices"}},
+                {"endpoint": "inv_sales_return.list_returns", "icon": "&#9632;",
+                 "label": "Sales Return",
+                 "active": {"prefix": "inv_sales_return"}},
             ]),
         ],
     },
