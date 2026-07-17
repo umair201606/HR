@@ -161,6 +161,10 @@ def _migrate_schema(db):
         ("users", "login_id", "VARCHAR(120)"),
         ("consumption_vouchers", "charge_account_id", "INTEGER"),
         ("scrap_vouchers", "charge_account_id", "INTEGER"),
+        ("chart_of_accounts", "cash_flow_activity", "VARCHAR(20)"),
+        ("chart_of_accounts", "pl_section", "VARCHAR(30)"),
+        ("inv_invoices", "party_account_id", "INTEGER"),
+        ("inv_purchase_invoices", "party_account_id", "INTEGER"),
         ("inv_suppliers", "mobile", "VARCHAR(200) DEFAULT ''"),
         ("inv_suppliers", "tax_id", "VARCHAR(200) DEFAULT ''"),
         ("inv_suppliers", "payment_terms", "VARCHAR(200) DEFAULT ''"),
@@ -281,63 +285,11 @@ def _seed_all_data(app):
             if not VoucherNumber.query.filter_by(prefix=prefix).first():
                 db.session.add(VoucherNumber(prefix=prefix, next_number=1))
 
-        def _add_acct(code, name, type_, parent_id=None, level=4, fixed=False):
-            if not ChartOfAccount.query.filter_by(code=str(code)).first():
-                db.session.add(ChartOfAccount(
-                    code=str(code), name=name, type=type_,
-                    parent_id=parent_id, level=level, is_fixed=fixed))
-            return ChartOfAccount.query.filter_by(code=str(code)).first()
-
-        def _seed_4level_coa():
-            if ChartOfAccount.query.count() > 0:
-                return
-            # Level 1
-            l1 = {}
-            for code, name, type_ in [("1", "Assets", "asset"), ("2", "Liabilities", "liability"),
-                                       ("3", "Equity", "equity"), ("4", "Revenue", "revenue"),
-                                       ("5", "Expense", "expense")]:
-                l1[name] = _add_acct(code, name, type_, level=1, fixed=True)
-            # Level 2
-            l2 = {}
-            l2["Current Assets"] = _add_acct("11", "Current Assets", "asset", l1["Assets"].id, 2, True)
-            l2["Non-Current Assets"] = _add_acct("12", "Non-Current Assets", "asset", l1["Assets"].id, 2, True)
-            l2["Current Liabilities"] = _add_acct("21", "Current Liabilities", "liability", l1["Liabilities"].id, 2, True)
-            l2["Non-Current Liabilities"] = _add_acct("22", "Non-Current Liabilities", "liability", l1["Liabilities"].id, 2, True)
-            l2["Equity Reserves"] = _add_acct("31", "Equity Reserves", "equity", l1["Equity"].id, 2)
-            l2["Operating Revenue"] = _add_acct("41", "Operating Revenue", "revenue", l1["Revenue"].id, 2)
-            l2["Operating Expenses"] = _add_acct("51", "Operating Expenses", "expense", l1["Expense"].id, 2)
-            # Level 3
-            l3 = {}
-            l3["Cash & Bank"] = _add_acct("111", "Cash & Bank", "asset", l2["Current Assets"].id, 3, True)
-            l3["Trade Debtors"] = _add_acct("112", "Trade Debtors", "asset", l2["Current Assets"].id, 3, True)
-            l3["Trading Goods Stock"] = _add_acct("113", "Trading Goods Stock", "asset", l2["Current Assets"].id, 3, True)
-            l3["Fixed Assets"] = _add_acct("121", "Fixed Assets", "asset", l2["Non-Current Assets"].id, 3, True)
-            l3["Trade Creditors"] = _add_acct("211", "Trade Creditors", "liability", l2["Current Liabilities"].id, 3, True)
-            l3["Accrued Expenses"] = _add_acct("212", "Accrued Expenses", "liability", l2["Current Liabilities"].id, 3)
-            l3["Long-term Loans"] = _add_acct("221", "Long-term Loans", "liability", l2["Non-Current Liabilities"].id, 3, True)
-            l3["Sales Revenue"] = _add_acct("411", "Sales Revenue", "revenue", l2["Operating Revenue"].id, 3)
-            l3["Service Income"] = _add_acct("412", "Service Income", "revenue", l2["Operating Revenue"].id, 3)
-            l3["Cost of Goods Sold"] = _add_acct("511", "Cost of Goods Sold", "expense", l2["Operating Expenses"].id, 3)
-            l3["Salaries & Wages"] = _add_acct("512", "Salaries & Wages", "expense", l2["Operating Expenses"].id, 3)
-            l3["Rent & Utilities"] = _add_acct("513", "Rent & Utilities", "expense", l2["Operating Expenses"].id, 3)
-            l3["Office Supplies"] = _add_acct("514", "Office Supplies", "expense", l2["Operating Expenses"].id, 3)
-            l3["Transportation"] = _add_acct("515", "Transportation", "expense", l2["Operating Expenses"].id, 3)
-            l3["Taxes & Licenses"] = _add_acct("516", "Taxes & Licenses", "expense", l2["Operating Expenses"].id, 3)
-            l3["Depreciation"] = _add_acct("517", "Depreciation", "expense", l2["Operating Expenses"].id, 3)
-            l3["Other Expenses"] = _add_acct("519", "Other Expenses", "expense", l2["Operating Expenses"].id, 3)
-            # Level 4 fixed
-            _add_acct("3111", "Capital Account", "equity", l2["Equity Reserves"].id, 4, True)
-            _add_acct("3112", "Retained Earnings", "equity", l2["Equity Reserves"].id, 4, True)
-            _add_acct("1111", "Suspense Account", "asset", l3["Cash & Bank"].id, 4, True)
-            # Payroll accounts (created by get_or_create_account at runtime, seeded here for visibility)
-            _add_acct("5121", "Salary Expense", "expense", l3["Salaries & Wages"].id, 4)
-            _add_acct("5122", "PF Employer Expense", "expense", l3["Salaries & Wages"].id, 4)
-            _add_acct("2121", "Salary Payable", "liability", l3["Accrued Expenses"].id, 4)
-            _add_acct("2122", "Income Tax Payable", "liability", l3["Accrued Expenses"].id, 4)
-            _add_acct("2123", "PF Payable", "liability", l3["Accrued Expenses"].id, 4)
-            _add_acct("2124", "Loan Deductions Clearing", "liability", l3["Accrued Expenses"].id, 4)
-
-        _seed_4level_coa()
+        # Fixed five-level segmented chart of accounts. Also migrates any
+        # legacy chart (flat 1000-series or old 111-series) onto the new tree
+        # in place, preserving all journal history.
+        from shared.coa import ensure_fixed_coa
+        ensure_fixed_coa()
 
         db.session.commit()
 
@@ -443,9 +395,10 @@ def _seed_all_data(app):
 
         InventorySettings.get()
 
-        from shared.models.company_settings import CompanyInfo, AccountingPeriod
+        from shared.models.company_settings import CompanyInfo, AccountingPeriod, ReportSettings
         CompanyInfo.get()
         AccountingPeriod.seed_current_year()
+        ReportSettings.get()
 
         # Backfill level-4 subledger accounts for entities created before the
         # auto-ledger feature (idempotent — keyed on deterministic codes).

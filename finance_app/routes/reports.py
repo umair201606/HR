@@ -11,10 +11,11 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet
+from collections import defaultdict
 from shared.extensions import db
 from shared.models.ledger import ChartOfAccount, JournalEntry, JournalLine
 from shared.models.base import User
-from shared.models.company_settings import AccountingPeriod
+from shared.models.company_settings import AccountingPeriod, ReportSettings
 from shared.ledger_utils import posting_account
 
 finance_bp = Blueprint("finance", __name__, url_prefix="/finance")
@@ -141,6 +142,84 @@ def _net_income(as_of=None):
     return total_rev - total_exp
 
 
+def _period_movements(from_date=None, to_date=None, types=None):
+    """Per-account (dr, cr) sums of posted lines within the period.
+    Returns {account_id: (Decimal dr, Decimal cr)}."""
+    q = db.session.query(
+        JournalLine.account_id,
+        db.func.coalesce(db.func.sum(JournalLine.debit), 0).label("dr"),
+        db.func.coalesce(db.func.sum(JournalLine.credit), 0).label("cr"),
+    ).join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id
+           ).filter(JournalEntry.is_posted == True)
+    if from_date:
+        q = q.filter(JournalEntry.entry_date >= from_date)
+    if to_date:
+        q = q.filter(JournalEntry.entry_date <= to_date)
+    if types:
+        q = q.join(ChartOfAccount, JournalLine.account_id == ChartOfAccount.id
+                   ).filter(ChartOfAccount.type.in_(types))
+    return {r.account_id: (Decimal(str(r.dr)), Decimal(str(r.cr)))
+            for r in q.group_by(JournalLine.account_id).all()}
+
+
+def _pl_rows(from_date, to_date):
+    """Sectioned P&L per ReportSettings.pl_structure.
+
+    Every P&L account's contribution to profit is (credit - debit); revenue
+    is naturally positive, expenses negative, and contra accounts (sales
+    returns, purchase discounts) self-correct without special cases. Each
+    structure entry's ``negate`` flag only flips the DISPLAY sign so expense
+    sections read as positive figures under a "Less: ..." label.
+
+    Returns (render_rows, net_profit). Render row kinds:
+    header / account / total / subtotal.
+    """
+    settings = ReportSettings.get()
+    detail = settings.pl_detail_rows or 10
+    movements = _period_movements(from_date, to_date, ["revenue", "expense"])
+    accounts = {a.id: a for a in ChartOfAccount.query.filter(
+        ChartOfAccount.type.in_(["revenue", "expense", "contra-expense"])).all()}
+
+    by_section = defaultdict(list)
+    for aid, (dr, cr) in movements.items():
+        a = accounts.get(aid)
+        if a is None:
+            continue
+        contrib = cr - dr
+        if dr == 0 and cr == 0:
+            continue
+        section = a.effective_pl_section() or (
+            "other_income" if a.type == "revenue" else "other_operating")
+        by_section[section].append({"code": a.code, "name": a.name, "contrib": contrib})
+
+    rows, running = [], Decimal("0")
+    for entry in settings.pl_structure():
+        if "section" in entry:
+            items = by_section.get(entry["section"], [])
+            if not items:
+                continue
+            negate = bool(entry.get("negate"))
+            disp = (lambda c: -c) if negate else (lambda c: c)
+            total_contrib = sum(i["contrib"] for i in items)
+            running += total_contrib
+            items.sort(key=lambda i: -abs(i["contrib"]))
+            shown, hidden = items[:detail], items[detail:]
+            rows.append({"kind": "header", "label": entry["label"]})
+            for i in shown:
+                rows.append({"kind": "account", "code": i["code"], "name": i["name"],
+                             "amount": float(disp(i["contrib"]))})
+            if hidden:
+                rows.append({"kind": "account", "code": "",
+                             "name": f"Others ({len(hidden)} accounts)",
+                             "amount": float(disp(sum(i["contrib"] for i in hidden)))})
+            rows.append({"kind": "total", "label": f"Total {entry['label']}",
+                         "amount": float(disp(total_contrib))})
+        elif "subtotal" in entry:
+            rows.append({"kind": "subtotal", "label": entry["label"],
+                         "amount": float(running)})
+    return rows, float(running)
+
+
 def _build_excel_wb(title, headers, rows, col_widths=None):
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -253,11 +332,18 @@ def _get_leaf_descendant_ids(account_id):
 
 
 def _get_ledger_sections(account_ids, from_date, to_date):
+    """Per-account ledger: opening balance (all posted activity before the
+    period), movements during the period with a running balance, and a
+    closing balance labelled Dr/Cr."""
     sections = []
     for aid in account_ids:
         account = ChartOfAccount.query.get(aid)
         if not account:
             continue
+        opening = Decimal("0")
+        if from_date:
+            odr, ocr = _get_account_balance(aid, from_date - timedelta(days=1))
+            opening = odr - ocr
         q = JournalLine.query.join(JournalEntry).filter(
             JournalLine.account_id == aid,
             JournalEntry.is_posted == True,
@@ -269,11 +355,14 @@ def _get_ledger_sections(account_ids, from_date, to_date):
         q = q.order_by(JournalEntry.entry_date, JournalEntry.id)
         lines = q.all()
         rows = []
-        balance = Decimal("0")
+        balance = opening
+        total_dr = total_cr = Decimal("0")
         for line in lines:
             dr = Decimal(str(line.debit))
             cr = Decimal(str(line.credit))
             balance += dr - cr
+            total_dr += dr
+            total_cr += cr
             rows.append({
                 "date": line.entry.entry_date.strftime("%Y-%m-%d") if line.entry.entry_date else "",
                 "voucher": line.entry.voucher_number or "",
@@ -282,7 +371,27 @@ def _get_ledger_sections(account_ids, from_date, to_date):
                 "credit": float(cr) if cr else 0,
                 "balance": float(balance),
             })
-        sections.append({"account": account, "rows": rows, "subtotal": float(balance)})
+        if not rows and opening == 0:
+            # Nothing before or during the period — skip empty accounts when
+            # rendering "all accounts" so the report stays readable.
+            sections.append({"account": account, "rows": rows, "empty": True,
+                             "opening": 0.0, "closing": 0.0,
+                             "closing_side": "Dr", "opening_side": "Dr",
+                             "total_debit": 0.0, "total_credit": 0.0,
+                             "subtotal": 0.0})
+            continue
+        sections.append({
+            "account": account,
+            "rows": rows,
+            "empty": False,
+            "opening": float(abs(opening)),
+            "opening_side": "Dr" if opening >= 0 else "Cr",
+            "total_debit": float(total_dr),
+            "total_credit": float(total_cr),
+            "closing": float(abs(balance)),
+            "closing_side": "Dr" if balance >= 0 else "Cr",
+            "subtotal": float(balance),
+        })
     return sections
 
 
@@ -315,6 +424,7 @@ def ledger():
             resolved_ids = list(set(resolved_ids))
 
     account_sections = _get_ledger_sections(resolved_ids, from_date, to_date) if resolved_ids else []
+    account_sections = [s for s in account_sections if not s.get("empty")]
 
     fmt = request.args.get("format")
     if fmt and account_sections:
@@ -323,8 +433,10 @@ def ledger():
             wb = openpyxl.Workbook()
             wb.remove(wb.active)
             for sec in account_sections:
-                data = [[r["date"], r["voucher"], r["description"], r["debit"], r["credit"], r["balance"]]
-                        for r in sec["rows"]]
+                data = ([["", "", "Opening Balance", "", "",
+                          f"{sec['opening']:,.2f} {sec['opening_side']}"]] +
+                        [[r["date"], r["voucher"], r["description"], r["debit"], r["credit"], r["balance"]]
+                         for r in sec["rows"]])
                 ws = wb.create_sheet(title=sec["account"].code[:31])
                 ws.merge_cells("A1:F1")
                 ws.cell(row=1, column=1, value=f"{sec['account'].code} - {sec['account'].name}").font = TITLE_FONT
@@ -337,8 +449,12 @@ def ledger():
                         c.font = DATA_FONT; c.border = THIN
                         c.alignment = RIGHT if isinstance(val, (int, float, Decimal)) else LEFT_ALIGN
                 tr = 4 + len(data)
-                ws.cell(row=tr, column=5, value="Subtotal").font = BOLD_FONT
-                ws.cell(row=tr, column=6, value=sec["subtotal"]).font = BOLD_FONT
+                ws.cell(row=tr, column=3, value="Period Movement").font = BOLD_FONT
+                ws.cell(row=tr, column=4, value=sec["total_debit"]).font = BOLD_FONT
+                ws.cell(row=tr, column=5, value=sec["total_credit"]).font = BOLD_FONT
+                ws.cell(row=tr + 1, column=5, value="Closing Balance").font = BOLD_FONT
+                ws.cell(row=tr + 1, column=6,
+                        value=f"{sec['closing']:,.2f} {sec['closing_side']}").font = BOLD_FONT
             out = BytesIO(); wb.save(out); out.seek(0)
             return send_file(out, as_attachment=True, download_name="general_ledger.xlsx",
                              mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -346,9 +462,13 @@ def ledger():
             all_data = []
             for sec in account_sections:
                 all_data.append([sec["account"].code, sec["account"].name, "", "", "", ""])
+                all_data.append(["", "", "Opening Balance", "", "",
+                                 f"{sec['opening']:,.2f} {sec['opening_side']}"])
                 for r in sec["rows"]:
                     all_data.append([r["date"], r["voucher"], r["description"], r["debit"], r["credit"], r["balance"]])
-                all_data.append(["", "", "", "", "Subtotal", sec["subtotal"]])
+                all_data.append(["", "", "Period Movement", sec["total_debit"], sec["total_credit"], ""])
+                all_data.append(["", "", "", "", "Closing Balance",
+                                 f"{sec['closing']:,.2f} {sec['closing_side']}"])
                 all_data.append(["", "", "", "", "", ""])
             hdrs = ["Date", "Voucher #", "Description", "Debit", "Credit", "Balance"]
             pdf_out = _build_pdf_landscape("General Ledger", hdrs, all_data, [24, 28, 60, 24, 24, 24])
@@ -439,6 +559,32 @@ def trial_balance():
             "cr_closing": float(cr_cl),
         })
 
+    # Roll-up subtotals per account class (codes start with the class digit:
+    # 1 Assets .. 5 Expenses), inserted after each class's rows.
+    CLASS_NAMES = {"1": "Assets", "2": "Liabilities", "3": "Equity",
+                   "4": "Revenue", "5": "Expenses"}
+    grouped = []
+    cls_tot = None
+    prev_cls = None
+
+    def close_class(g, tot, cls):
+        if tot and cls in CLASS_NAMES:
+            g.append({"code": "", "name": f"Total {CLASS_NAMES[cls]}", "type": "",
+                      "is_subtotal": True, **{k: tot[k] for k in tot}})
+
+    for r in rows:
+        cls = (r["code"] or "?")[0]
+        if cls != prev_cls:
+            close_class(grouped, cls_tot, prev_cls)
+            cls_tot = {k: 0.0 for k in ("dr_opening", "cr_opening", "dr_movement",
+                                        "cr_movement", "dr_closing", "cr_closing")}
+            prev_cls = cls
+        grouped.append(r)
+        for k in cls_tot:
+            cls_tot[k] += r[k]
+    close_class(grouped, cls_tot, prev_cls)
+    rows = grouped
+
     fmt = request.args.get("format")
     headers = ["Code", "Account", "Type", "Dr Opening", "Cr Opening",
                "Dr Movement", "Cr Movement", "Dr Closing", "Cr Closing"]
@@ -493,80 +639,64 @@ def profit_loss():
     if not from_date: from_date = date(date.today().year, 1, 1)
     if not to_date: to_date = date.today()
 
-    rev_balances = _all_account_balances(to_date, ["revenue"])
-    exp_balances = _all_account_balances(to_date, ["expense"])
-
-    rev_rows = []
-    total_rev = Decimal("0")
-    for b in rev_balances:
-        bal = b.cr - b.dr
-        if bal == 0:
-            continue
-        total_rev += bal
-        rev_rows.append({"code": b.code, "name": b.name, "amount": float(bal)})
-
-    exp_rows = []
-    total_exp = Decimal("0")
-    for b in exp_balances:
-        bal = b.dr - b.cr
-        if bal == 0:
-            continue
-        total_exp += bal
-        exp_rows.append({"code": b.code, "name": b.name, "amount": float(bal)})
-
-    net_income = float(total_rev - total_exp)
+    pl_rows, net_profit = _pl_rows(from_date, to_date)
 
     fmt = request.args.get("format")
     if fmt == "excel":
-        headers = ["Code", "Account", "Amount"]
-        rev_data = [[r["code"], r["name"], r["amount"]] for r in rev_rows]
-        exp_data = [[r["code"], r["name"], r["amount"]] for r in exp_rows]
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "P&L"
         ws.merge_cells("A1:C1")
         ws.cell(row=1, column=1, value=f"Profit & Loss ({from_date} to {to_date})").font = TITLE_FONT
-
-        def write_section(ws, start_row, section_title, headers, data, total_label, total_val):
-            ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=3)
-            ws.cell(row=start_row, column=1, value=section_title).font = Font(bold=True, size=12)
-            sr = start_row + 1
-            for ci, h in enumerate(headers, 1):
-                c = ws.cell(row=sr, column=ci, value=h)
-                c.font = HEADER_FONT; c.fill = HEADER_FILL; c.alignment = CENTER; c.border = THIN
-            for ri, row in enumerate(data, sr + 1):
-                for ci, v in enumerate(row, 1):
-                    c = ws.cell(row=ri, column=ci, value=v)
-                    c.font = DATA_FONT; c.border = THIN
-                    c.alignment = RIGHT if isinstance(v, (int, float, Decimal)) else LEFT_ALIGN
-            total_row = sr + len(data) + 1
-            ws.cell(row=total_row, column=2, value=total_label).font = BOLD_FONT
-            ws.cell(row=total_row, column=3, value=total_val).font = BOLD_FONT
-            ws.cell(row=total_row, column=2).border = THIN
-            ws.cell(row=total_row, column=3).border = THIN
-            return total_row + 2
-
-        next_row = write_section(ws, 3, "REVENUE", headers, rev_data, "Total Revenue", float(total_rev))
-        next_row = write_section(ws, next_row, "EXPENSES", headers, exp_data, "Total Expenses", float(total_exp))
-        ws.merge_cells(start_row=next_row, start_column=1, end_row=next_row, end_column=3)
-        ws.cell(row=next_row, column=1, value=f"NET INCOME / (LOSS)").font = Font(bold=True, size=13, color="1F4E79")
-        ws.cell(row=next_row, column=3, value=net_income).font = Font(bold=True, size=13, color="1F4E79")
+        r = 3
+        for row in pl_rows:
+            if row["kind"] == "header":
+                ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
+                c = ws.cell(row=r, column=1, value=row["label"])
+                c.font = Font(bold=True, size=12); c.fill = HEADER_FILL
+                c.font = Font(bold=True, size=12, color="FFFFFF")
+            elif row["kind"] == "account":
+                ws.cell(row=r, column=1, value=row["code"]).font = DATA_FONT
+                ws.cell(row=r, column=2, value=row["name"]).font = DATA_FONT
+                c = ws.cell(row=r, column=3, value=row["amount"])
+                c.font = DATA_FONT; c.alignment = RIGHT
+            elif row["kind"] == "total":
+                ws.cell(row=r, column=2, value=row["label"]).font = BOLD_FONT
+                c = ws.cell(row=r, column=3, value=row["amount"])
+                c.font = BOLD_FONT; c.alignment = RIGHT
+            else:  # subtotal / profit line
+                ws.cell(row=r, column=2, value=row["label"]).font = Font(bold=True, size=12, color="1F4E79")
+                c = ws.cell(row=r, column=3, value=row["amount"])
+                c.font = Font(bold=True, size=12, color="1F4E79"); c.alignment = RIGHT
+                r += 1  # blank spacer after each profit line
+            r += 1
+        ws.column_dimensions["A"].width = 18
+        ws.column_dimensions["B"].width = 44
+        ws.column_dimensions["C"].width = 18
         out = BytesIO(); wb.save(out); out.seek(0)
         return send_file(out, as_attachment=True, download_name="profit_loss.xlsx",
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     if fmt == "pdf":
-        headers = ["Code", "Account", "Amount"]
-        rev_data = [[r["code"], r["name"], f"{r['amount']:,.2f}"] for r in rev_rows]
-        exp_data = [[r["code"], r["name"], f"{r['amount']:,.2f}"] for r in exp_rows]
+        headers = ["Code", "Account / Section", "Amount"]
+        data = []
+        for row in pl_rows:
+            if row["kind"] == "header":
+                data.append(["", row["label"].upper(), ""])
+            elif row["kind"] == "account":
+                data.append([row["code"], row["name"], f"{row['amount']:,.2f}"])
+            elif row["kind"] == "total":
+                data.append(["", row["label"], f"{row['amount']:,.2f}"])
+            else:
+                data.append(["", row["label"], f"{row['amount']:,.2f}"])
+                data.append(["", "", ""])
         pdf_out = _build_pdf_landscape(f"Profit & Loss ({from_date} to {to_date})",
-                                        headers, rev_data + [["", "", ""]] + exp_data, [20, 60, 30])
+                                        headers, data, [24, 66, 26])
         return send_file(pdf_out, as_attachment=True, download_name="profit_loss.pdf",
                          mimetype="application/pdf")
 
-    return render_template("finance/profit_loss.html", rev_rows=rev_rows,
-                           exp_rows=exp_rows, total_rev=float(total_rev),
-                           total_exp=float(total_exp), net_income=net_income,
+    return render_template("finance/profit_loss.html", pl_rows=pl_rows,
+                           net_profit=net_profit,
                            from_date=from_date, to_date=to_date,
                            periods=periods, selected_period_id=selected_period_id,
                            filter_mode=filter_mode, from_str=from_str, to_str=to_str,
@@ -744,94 +874,134 @@ def socie():
 @finance_bp.route("/cash-flow")
 @login_required
 def cash_flow():
+    """Indirect-method cash flow driven by per-account cash_flow_activity tags.
+
+    Net profit for the period, adjusted by the period's balance-sheet
+    movements grouped by each account's effective activity tag (operating /
+    investing / financing). Accounts tagged "cash" are the statement's
+    subject: their movement is the target the three activity totals must
+    reconcile to.
+    """
     from_date, to_date, periods, selected_period_id, filter_mode, from_str, to_str = _resolve_period()
     if not from_date: from_date = date(date.today().year, 1, 1)
     if not to_date: to_date = date.today()
-    prev_date = date(from_date.year - 1, from_date.month, from_date.day) if from_date else None
+    opening_cutoff = from_date - timedelta(days=1)
 
-    ni = _net_income(to_date)
+    # Net profit for the period: sum of (cr - dr) over P&L accounts.
+    pl_moves = _period_movements(from_date, to_date, ["revenue", "expense", "contra-expense"])
+    net_profit = float(sum(cr - dr for dr, cr in pl_moves.values()))
 
-    cash_acct = posting_account("cash")
-    ar_acct = posting_account("ar")
-    inv_acct = posting_account("inventory")
-    ap_acct = posting_account("ap")
-    accrued_acct = posting_account("accrued")
-    loans_acct = posting_account("loans")
-    fa_acct = posting_account("fixed_assets")
+    # Balance-sheet movements for the period, grouped by activity tag, and
+    # within each activity by the account's level-3 head for readability.
+    bs_moves = _period_movements(from_date, to_date, ["asset", "liability", "equity"])
+    accounts = {a.id: a for a in ChartOfAccount.query.all()}
 
-    def change(acct):
-        if not acct:
-            return 0
-        dr_now, cr_now = _get_account_balance(acct.id, to_date)
-        dr_prev, cr_prev = _get_account_balance(acct.id, prev_date) if prev_date else (Decimal("0"), Decimal("0"))
+    def l3_head(acct):
+        a = acct
+        while a is not None and a.level > 3:
+            a = a.parent
+        return a.name if a is not None else acct.name
 
-        if acct.type == "asset":
-            now_bal = dr_now - cr_now
-            prev_bal = dr_prev - cr_prev
-            return float(prev_bal - now_bal)
-        else:
-            now_bal = cr_now - dr_now
-            prev_bal = cr_prev - dr_prev
-            return float(now_bal - prev_bal)
+    groups = {"operating": defaultdict(float), "investing": defaultdict(float),
+              "financing": defaultdict(float)}
+    cash_movement = 0.0
+    for aid, (dr, cr) in bs_moves.items():
+        acct = accounts.get(aid)
+        if acct is None:
+            continue
+        activity = acct.effective_cash_flow_activity() or "operating"
+        if activity == "cash":
+            cash_movement += float(dr - cr)
+            continue
+        # Cash effect of a balance-sheet movement: an asset build-up consumes
+        # cash (-(dr-cr)); a liability/equity build-up provides it (+(cr-dr)).
+        # Both reduce to (cr - dr) regardless of account type.
+        effect = float(cr - dr)
+        if effect:
+            groups[activity][l3_head(acct)] += effect
 
-    op_items = [
-        ("Net Income / (Loss)", float(ni), True),
-        ("Change in Accounts Receivable", change(ar_acct), True),
-        ("Change in Inventory", change(inv_acct), True),
-        ("Change in Accounts Payable", change(ap_acct), True),
-        ("Change in Accrued Expenses", change(accrued_acct), True),
-    ]
-    inv_items = [
-        ("Change in Fixed Assets", change(fa_acct), False),
-    ]
-    fin_items = [
-        ("Change in Loans Payable", change(loans_acct), True),
-    ]
+    op_items = [("Net Profit / (Loss) for the period", net_profit)]
+    op_items += [(f"(Increase) / Decrease in {name}" if v < 0 else
+                  f"Decrease / (Increase) in {name}", v)
+                 for name, v in sorted(groups["operating"].items())]
+    inv_items = [(f"Movement in {name}", v) for name, v in sorted(groups["investing"].items())]
+    fin_items = [(f"Movement in {name}", v) for name, v in sorted(groups["financing"].items())]
 
-    net_operating = sum(v for _, v, _ in op_items)
-    net_investing = sum(v for _, v, _ in inv_items)
-    net_financing = sum(v for _, v, _ in fin_items)
+    net_operating = sum(v for _, v in op_items)
+    net_investing = sum(v for _, v in inv_items)
+    net_financing = sum(v for _, v in fin_items)
     net_change = net_operating + net_investing + net_financing
+
+    # Reconciliation against the actual cash-account balances.
+    cash_ids = [a.id for a in accounts.values()
+                if (a.effective_cash_flow_activity() or "") == "cash" and a.level >= 5]
+
+    def cash_balance(as_of):
+        total = Decimal("0")
+        for cid in cash_ids:
+            dr, cr = _get_account_balance(cid, as_of)
+            total += dr - cr
+        return float(total)
+    opening_cash = cash_balance(opening_cutoff)
+    closing_cash = cash_balance(to_date)
 
     fmt = request.args.get("format")
     if fmt == "excel":
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Cash Flow"
-        ws.merge_cells("A1:C1")
+        ws.merge_cells("A1:B1")
         ws.cell(row=1, column=1, value=f"Cash Flow Statement ({from_date} to {to_date})").font = TITLE_FONT
 
-        def write_section(ws, sr, title, items, sign):
-            ws.merge_cells(start_row=sr, start_column=1, end_row=sr, end_column=3)
+        def write_section(sr, title, items, total_label, total_val):
+            ws.merge_cells(start_row=sr, start_column=1, end_row=sr, end_column=2)
             ws.cell(row=sr, column=1, value=title).font = Font(bold=True, size=12)
-            hdr = sr + 1
-            for ci, h in enumerate(["Item", "Amount", ""], 1):
-                c = ws.cell(row=hdr, column=ci, value=h)
-                c.font = HEADER_FONT; c.fill = HEADER_FILL; c.alignment = CENTER; c.border = THIN
-            for ri, (name, val, _) in enumerate(items, hdr + 1):
-                ws.cell(row=ri, column=1, value=name).font = DATA_FONT; ws.cell(row=ri, column=1).border = THIN
-                ws.cell(row=ri, column=2, value=val).font = DATA_FONT; ws.cell(row=ri, column=2).border = THIN
-                ws.cell(row=ri, column=2).alignment = RIGHT
-            return hdr + len(items) + 2
+            r = sr + 1
+            for name, val in items:
+                ws.cell(row=r, column=1, value=name).font = DATA_FONT
+                cc = ws.cell(row=r, column=2, value=val)
+                cc.font = DATA_FONT; cc.alignment = RIGHT
+                r += 1
+            ws.cell(row=r, column=1, value=total_label).font = BOLD_FONT
+            cc = ws.cell(row=r, column=2, value=total_val)
+            cc.font = BOLD_FONT; cc.alignment = RIGHT
+            return r + 2
 
-        nr = write_section(ws, 3, "OPERATING ACTIVITIES", op_items, True)
-        nr = write_section(ws, nr, "INVESTING ACTIVITIES", inv_items, False)
-        nr = write_section(ws, nr, "FINANCING ACTIVITIES", fin_items, True)
-        ws.merge_cells(start_row=nr, start_column=1, end_row=nr, end_column=3)
-        ws.cell(row=nr, column=1, value="NET CASH CHANGE").font = BOLD_FONT
-        ws.cell(row=nr, column=2, value=net_change).font = BOLD_FONT
-        ws.column_dimensions["A"].width = 40; ws.column_dimensions["B"].width = 20
+        nr = write_section(3, "OPERATING ACTIVITIES", op_items,
+                           "Net cash from operating activities", net_operating)
+        nr = write_section(nr, "INVESTING ACTIVITIES", inv_items,
+                           "Net cash from investing activities", net_investing)
+        nr = write_section(nr, "FINANCING ACTIVITIES", fin_items,
+                           "Net cash from financing activities", net_financing)
+        for label, val in [("NET CHANGE IN CASH", net_change),
+                           ("Opening cash & equivalents", opening_cash),
+                           ("Closing cash & equivalents", closing_cash)]:
+            ws.cell(row=nr, column=1, value=label).font = BOLD_FONT
+            cc = ws.cell(row=nr, column=2, value=val)
+            cc.font = BOLD_FONT; cc.alignment = RIGHT
+            nr += 1
+        ws.column_dimensions["A"].width = 46
+        ws.column_dimensions["B"].width = 20
         out = BytesIO(); wb.save(out); out.seek(0)
         return send_file(out, as_attachment=True, download_name="cash_flow.xlsx",
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     if fmt == "pdf":
-        all_items = (op_items + [("", 0, True)] + inv_items +
-                     [("", 0, True)] + fin_items)
         headers = ["Item", "Amount"]
-        pdf_data = [[n, f"{v:,.2f}"] for n, v, _ in all_items]
+        pdf_data = ([["OPERATING ACTIVITIES", ""]] +
+                    [[n, f"{v:,.2f}"] for n, v in op_items] +
+                    [["Net cash from operating activities", f"{net_operating:,.2f}"], ["", ""]] +
+                    [["INVESTING ACTIVITIES", ""]] +
+                    [[n, f"{v:,.2f}"] for n, v in inv_items] +
+                    [["Net cash from investing activities", f"{net_investing:,.2f}"], ["", ""]] +
+                    [["FINANCING ACTIVITIES", ""]] +
+                    [[n, f"{v:,.2f}"] for n, v in fin_items] +
+                    [["Net cash from financing activities", f"{net_financing:,.2f}"], ["", ""]] +
+                    [["NET CHANGE IN CASH", f"{net_change:,.2f}"],
+                     ["Opening cash & equivalents", f"{opening_cash:,.2f}"],
+                     ["Closing cash & equivalents", f"{closing_cash:,.2f}"]])
         pdf_out = _build_pdf_landscape(f"Cash Flow Statement ({from_date} to {to_date})",
-                                        headers, pdf_data, [80, 30])
+                                       headers, pdf_data, [80, 30])
         return send_file(pdf_out, as_attachment=True, download_name="cash_flow.pdf",
                          mimetype="application/pdf")
 
@@ -839,7 +1009,10 @@ def cash_flow():
                            inv_items=inv_items, fin_items=fin_items,
                            net_operating=net_operating, net_investing=net_investing,
                            net_financing=net_financing, net_change=net_change,
+                           opening_cash=opening_cash, closing_cash=closing_cash,
+                           cash_movement=cash_movement,
                            from_date=from_date, to_date=to_date,
                            periods=periods, selected_period_id=selected_period_id,
                            filter_mode=filter_mode, from_str=from_str, to_str=to_str,
                            now=datetime.utcnow())
+

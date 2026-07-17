@@ -16,14 +16,20 @@
   </div>
 </form>
 
-<div class="card">
-  <p class="text-sm text-slate-500 mb-4">
-    {% if from_date %}Period: <strong>{{ from_date.strftime('%d %B %Y') }}</strong> to {% endif %}
-    <strong>{{ as_of.strftime('%d %B %Y') }}</strong>
-  </p>
+<div class="card report-sheet">
+  <div class="report-head">
+    <div>
+      <div class="report-company">{{ company.company_name if company else '' }}</div>
+      <div class="report-title-lg">Trial Balance</div>
+      <div class="report-period">
+        {% if from_date %}For the period {{ from_date.strftime('%d %B %Y') }} to {% else %}As at {% endif %}{{ as_of.strftime('%d %B %Y') }}
+        &nbsp;·&nbsp; Opening → Movement → Closing
+      </div>
+    </div>
+  </div>
   {% if rows %}
   <div class="overflow-x-auto">
-    <table class="report-table">
+    <table class="report-table statement">
       <thead>
         <tr>
           <th>Code</th><th>Account</th><th>Type</th>
@@ -34,10 +40,10 @@
       </thead>
       <tbody>
         {% for r in rows %}
-        <tr>
-          <td>{{ r.code }}</td>
+        <tr {% if r.is_subtotal %}class="subtotal-row"{% endif %}>
+          <td class="mono">{{ r.code }}</td>
           <td>{{ r.name }}</td>
-          <td><span class="badge {% if r.type == 'Asset' %}badge-blue{% elif r.type == 'Liability' %}badge-purple{% elif r.type == 'Equity' %}badge-green{% elif r.type == 'Revenue' %}badge-green{% else %}badge-blue{% endif %}">{{ r.type }}</span></td>
+          <td>{% if r.type %}<span class="badge {% if r.type == 'Asset' %}badge-blue{% elif r.type == 'Liability' %}badge-purple{% elif r.type == 'Equity' %}badge-green{% elif r.type == 'Revenue' %}badge-green{% else %}badge-blue{% endif %}">{{ r.type }}</span>{% endif %}</td>
           <td class="num">{{ "{:,.2f}".format(r.dr_opening) if r.dr_opening else "—" }}</td>
           <td class="num">{{ "{:,.2f}".format(r.cr_opening) if r.cr_opening else "—" }}</td>
           <td class="num">{{ "{:,.2f}".format(r.dr_movement) if r.dr_movement else "—" }}</td>

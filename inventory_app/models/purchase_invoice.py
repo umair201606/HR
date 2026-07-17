@@ -9,6 +9,9 @@ class InvPurchaseInvoice(db.Model):
     voucher_number = db.Column(db.String(50), unique=True, nullable=False)
     invoice_date = db.Column(db.DateTime, default=datetime.utcnow)
     supplier_id = db.Column(db.Integer, db.ForeignKey("inv_suppliers.id"), nullable=False)
+    # Set when settings allow picking an arbitrary ledger account as the
+    # counterparty; the AP posting then credits this instead of the supplier.
+    party_account_id = db.Column(db.Integer, db.ForeignKey("chart_of_accounts.id"))
     driver_name = db.Column(db.String(100))
     driver_contact = db.Column(db.String(50))
     vehicle_number = db.Column(db.String(50))

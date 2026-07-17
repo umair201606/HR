@@ -8,7 +8,7 @@ from inventory_app.models.supplier import InvSupplier
 from inventory_app.models.product import InvProduct
 from inventory_app.models.stock_movement import InvStockMovement
 from shared.models.vouchers import ConsumptionItem as ConsItem, ScrapItem, StockAdjustmentItem as AdjItem
-from shared.ledger_utils import post_journal_entry, reverse_journal_entry, posting_account
+from shared.ledger_utils import post_journal_entry, reverse_journal_entry, posting_account, party_account
 from shared.models.ledger import ChartOfAccount
 from shared.permissions import deny_json
 from shared.costing import record_in, reverse_voucher_stock
@@ -55,10 +55,12 @@ def invoice_form(id):
                 "total_before_discount": it.total_before_discount,
                 "total_after_discount": it.total_after_discount,
             })
+    from shared.models.company_settings import ReportSettings
     return render_template("purchase_invoice/form_inv.html",
                            invoice=invoice,
                            invoice_items=invoice_items,
                            suppliers=suppliers,
+                           party_mode=ReportSettings.get().invoice_party_mode,
                            products=products,
                            now=datetime.utcnow())
 
@@ -110,6 +112,7 @@ def save_invoice():
             return jsonify({"ok": False, "error": "; ".join(validation_errors)}), 400
 
     inv.supplier_id = data.get("supplier_id")
+    inv.party_account_id = data.get("party_account_id") or None
     inv.driver_name = data.get("driver_name", "")
     inv.driver_contact = data.get("driver_contact", "")
     inv.vehicle_number = data.get("vehicle_number", "")
@@ -190,7 +193,11 @@ def save_invoice():
 
     if action == "approve":
         inv_acc = posting_account("inventory")
-        ap_acc = posting_account("ap")
+        # Payable posts to the supplier's own subledger account (or an
+        # explicit override), so the supplier's ledger carries the balance.
+        ap_acc = party_account("supplier", inv.supplier_id,
+                               inv.supplier.name if inv.supplier else None,
+                               inv.party_account_id)
         if inv_acc and ap_acc:
             # Goods value (subtotal net of discount, plus capitalised expenses)
             # is debited to Inventory; recoverable input sales tax is debited to

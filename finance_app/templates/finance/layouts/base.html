@@ -28,6 +28,43 @@
     table.report-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
     table.report-table tr:hover td { background: #f8fafc; }
     table.report-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    /* ── Financial-statement styling (P&L, cash flow, TB, BS, ledger) ── */
+    .report-sheet { padding-top: 20px; }
+    .report-head { display: flex; justify-content: space-between; align-items: flex-start;
+                   border-bottom: 3px double #1e293b; padding-bottom: 14px; margin-bottom: 16px; }
+    .report-company { font-size: 12px; font-weight: 700; letter-spacing: .8px;
+                      text-transform: uppercase; color: #64748b; }
+    .report-title-lg { font-size: 22px; font-weight: 800; color: #0f172a; margin: 2px 0; }
+    .report-sub { font-size: 13px; font-weight: 500; color: #64748b; }
+    .report-period { font-size: 13px; color: #475569; }
+    .report-footnote { font-size: 12px; color: #94a3b8; margin-top: 12px; }
+    .report-footnote a { color: #1d4ed8; }
+    table.statement thead th { position: sticky; top: 0; z-index: 5; }
+    table.statement .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                            font-size: 12px; color: #64748b; }
+    table.statement .indent { padding-left: 28px; }
+    table.statement tr.sec-head td { background: #f1f5f9; font-weight: 700; font-size: 12px;
+                                     letter-spacing: .6px; text-transform: uppercase; color: #334155;
+                                     border-top: 1px solid #cbd5e1; }
+    table.statement tr.sec-total td { font-weight: 600; border-top: 1px solid #94a3b8;
+                                      background: #fafafa; }
+    table.statement tr.profit-line td { font-weight: 800; font-size: 14px; color: #0f172a;
+                                        background: #eff6ff; border-top: 2px solid #1e293b;
+                                        border-bottom: 2px solid #1e293b; }
+    table.statement tr.profit-line.neg td { color: #b91c1c; background: #fef2f2; }
+    table.statement tr.grand-total td { font-weight: 800; font-size: 15px; background: #1e293b;
+                                        color: #fff; }
+    table.statement tr.subtotal-row td { font-weight: 700; background: #f8fafc;
+                                         border-top: 1px solid #94a3b8; }
+    table.statement tr.recon-line td { font-size: 12px; color: #475569; background: #f8fafc; }
+    table.statement tr.recon-bad td { color: #b91c1c; background: #fef2f2; font-weight: 600; }
+    table.statement tr.opening-row td, table.statement tr.closing-row td {
+        font-weight: 600; background: #f8fafc; font-style: italic; }
+    @media print {
+      .no-print, aside, nav { display: none !important; }
+      .card { box-shadow: none !important; border: none !important; }
+      table.statement thead th { position: static; }
+    }
     input, select { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 12px; font-size: 14px; }
     input:focus, select:focus { outline: none; border-color: #1d4ed8; box-shadow: 0 0 0 3px rgba(29,78,216,.15); }
     .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }

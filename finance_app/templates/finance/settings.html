@@ -14,6 +14,10 @@
         {% if tab == 'periods' %}bg-blue-50 text-blue-700 border-l-4 border-blue-600{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
         <i class="fas fa-calendar-alt fa-fw w-5 text-center"></i> Financial Periods
       </a>
+      <a href="?tab=reports" class="flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition
+        {% if tab == 'reports' %}bg-blue-50 text-blue-700 border-l-4 border-blue-600{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
+        <i class="fas fa-file-invoice fa-fw w-5 text-center"></i> Report Structure
+      </a>
       <a href="?tab=rights" class="flex items-center gap-3 px-5 py-3.5 text-sm font-medium transition
         {% if tab == 'rights' %}bg-blue-50 text-blue-700 border-l-4 border-blue-600{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
         <i class="fas fa-shield-alt fa-fw w-5 text-center"></i> User Rights & Controls
@@ -106,6 +110,61 @@
         </div>
         <div class="mt-6 flex gap-3">
           <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+        </div>
+      </form>
+    </div>
+
+    {% elif tab == 'reports' %}
+    <!-- ═══════ REPORT STRUCTURE ═══════ -->
+    <div class="card">
+      <h2 class="font-bold text-lg flex items-center gap-2 mb-1"><i class="fas fa-file-invoice text-blue-600"></i> Profit &amp; Loss Structure</h2>
+      <p class="text-sm text-slate-500 mb-4">Reorder rows, rename sections and profit lines. Accounting meaning (which accounts feed each section) is fixed by each account's P&amp;L tag in the chart of accounts.</p>
+      <form method="post" action="{{ url_for('finance_settings.save_report_settings') }}">
+        <div class="overflow-x-auto mb-4">
+          <table class="report-table">
+            <thead><tr><th style="width:70px;">Order</th><th>Row</th><th>Display Label</th><th style="width:110px;">Shown as</th></tr></thead>
+            <tbody>
+              {% for row in pl_structure %}
+              <tr>
+                <td><input type="number" name="row_order_{{ loop.index0 }}" value="{{ loop.index0 }}" style="width:60px;" class="text-center"></td>
+                <td>
+                  {% if row.section %}
+                  <input type="hidden" name="row_ident_{{ loop.index0 }}" value="section:{{ row.section }}">
+                  {% if row.negate %}<input type="hidden" name="row_negate_{{ loop.index0 }}" value="1">{% endif %}
+                  <span class="badge badge-blue">Section</span> <span class="text-xs text-slate-500 font-mono">{{ row.section }}</span>
+                  {% else %}
+                  <input type="hidden" name="row_ident_{{ loop.index0 }}" value="subtotal:{{ row.subtotal }}">
+                  <span class="badge badge-green">Profit line</span> <span class="text-xs text-slate-500 font-mono">{{ row.subtotal }}</span>
+                  {% endif %}
+                </td>
+                <td><input type="text" name="row_label_{{ loop.index0 }}" value="{{ row.label }}" style="width:100%;"></td>
+                <td class="text-xs text-slate-500">{{ 'Deduction' if row.negate else ('Running total' if row.subtotal else 'Addition') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Accounts shown per section</label>
+            <input type="number" name="pl_detail_rows" value="{{ report_settings.pl_detail_rows or 10 }}" min="1" max="100" style="width:120px;">
+            <p class="text-xs text-slate-400 mt-1">Remaining accounts collapse into an "Others" row.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1">Invoice party dropdown</label>
+            <select name="invoice_party_mode" style="min-width:260px;">
+              <option value="relevant" {{ 'selected' if report_settings.invoice_party_mode != 'all' }}>Relevant only (customers / suppliers)</option>
+              <option value="all" {{ 'selected' if report_settings.invoice_party_mode == 'all' }}>All accounts (adds a "Post To Account" override)</option>
+            </select>
+            <p class="text-xs text-slate-400 mt-1">Controls whether invoices can post their receivable/payable to any ledger account.</p>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Report Settings</button>
+          <button type="submit" name="reset_pl" value="1" class="btn btn-outline"
+                  onclick="return confirm('Reset the P&L layout to the default structure?')">
+            <i class="fas fa-rotate-left"></i> Reset P&amp;L to Default
+          </button>
         </div>
       </form>
     </div>

@@ -1,15 +1,24 @@
 {% extends "accounting/base_acct.html" %}
 {% block title %}{{ 'Edit' if account else 'Add' }} Account{% endblock %}
 {% block page_title %}{{ 'Edit' if account else 'Add' }} Account{% endblock %}
+{% block extra_css %}
+<style>
+.code-preview{background:#f0fdfa;border:1px dashed #0f5257;border-radius:8px;padding:12px 16px;margin:14px 0;display:none}
+.code-preview .cp-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:18px;font-weight:700;color:#0f5257}
+.code-preview .cp-level{font-size:12px;color:#64748b;margin-top:2px}
+.tag-help{font-size:11.5px;color:#94a3b8;margin-top:4px;line-height:1.5}
+.fgroup{margin-bottom:14px}
+</style>
+{% endblock %}
 {% block content %}
 <div class="wrap">
-  <div class="card" style="max-width:600px;">
+  <div class="card" style="max-width:640px;">
     <div class="card-h">{{ 'Edit' if account else 'Add New' }} Account</div>
     <div class="card-b">
       <form method="POST">
         {% if account and account.is_fixed %}
         <div style="background:#e0f2f1;color:#0f5257;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:16px;">
-          <strong>Fixed account</strong> — only status and description can be changed.
+          <strong>Fixed structural account</strong> — name and position are locked; report tags remain editable.
         </div>
         {% endif %}
 
@@ -17,19 +26,15 @@
         {# ── EDIT MODE ── #}
         <div class="fgroup">
           <label class="lbl">Level</label>
-          <div style="padding:7px 0;font-weight:600;color:#0f5257;">{{ level_labels.get(account.level, '') }}</div>
+          <div style="padding:4px 0;font-weight:600;color:#0f5257;">{{ level_labels.get(account.level, '') }}</div>
         </div>
         <div class="fgroup">
           <label class="lbl">Code</label>
-          <div style="padding:7px 0;font-family:monospace;">{{ account.code }}</div>
-        </div>
-        <div class="fgroup">
-          <label class="lbl">Type</label>
-          <div style="padding:7px 0;text-transform:capitalize;">{{ account.type }}</div>
+          <div style="padding:4px 0;font-family:monospace;font-size:15px;">{{ account.code }}</div>
         </div>
         <div class="fgroup">
           <label class="lbl">Full Path</label>
-          <div style="padding:7px 0;font-size:12px;color:#64748b;">{{ account.display_path() }}</div>
+          <div style="padding:4px 0;font-size:12px;color:#64748b;">{{ account.display_path() }}</div>
         </div>
         <div class="fgroup">
           <label class="lbl">Account Name</label>
@@ -38,9 +43,9 @@
         </div>
         <div class="fgroup">
           <label class="lbl">Description</label>
-          <textarea name="description" class="inp" style="width:100%;min-height:70px;">{{ account.description or '' }}</textarea>
+          <textarea name="description" class="inp" style="width:100%;min-height:60px;" {{ 'readonly' if account.is_fixed else '' }}>{{ account.description or '' }}</textarea>
         </div>
-        {% if account.level == 4 or not account.is_fixed %}
+        {% if not account.is_fixed %}
         <div class="fgroup">
           <label class="lbl">
             <input type="checkbox" name="is_active" value="1" {{ 'checked' if account.is_active else '' }}>
@@ -50,44 +55,77 @@
         {% endif %}
 
         {% else %}
-        {# ── ADD MODE ── #}
+        {# ── ADD MODE: pick the deepest parent; the account is created one level below it ── #}
         <div class="fgroup">
           <label class="lbl">Level 1 — Account Class</label>
-          <select id="l1Select" class="sel" style="width:100%;">
-            <option value="">-- Select Level 1 --</option>
+          <select id="sel1" class="sel" style="width:100%;">
+            <option value="">-- Select class --</option>
             {% for a in l1 %}
-            <option value="{{ a.id }}" {{ 'selected' if parent_id and parent_id == a.id else '' }}>{{ a.name }}</option>
+            <option value="{{ a.id }}">{{ a.code }} — {{ a.name }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="fgroup" id="l2Group" style="display:none;">
-          <label class="lbl">Level 2 — Account Group</label>
-          <select id="l2Select" class="sel" style="width:100%;">
-            <option value="">-- Select / Create Level 2 --</option>
-          </select>
-          <div id="l2NewRow" style="display:none;margin-top:6px;">
-            <input type="text" id="l2NewName" class="inp" placeholder="New Level 2 name" style="width:100%;">
-          </div>
+        <div class="fgroup" id="grp2" style="display:none;">
+          <label class="lbl">Level 2 — Sub-Group</label>
+          <select id="sel2" class="sel" style="width:100%;"></select>
         </div>
-        <div class="fgroup" id="l3Group" style="display:none;">
-          <label class="lbl">Level 3 — Account Head</label>
-          <select id="l3Select" class="sel" style="width:100%;">
-            <option value="">-- Select / Create Level 3 --</option>
-          </select>
-          <div id="l3NewRow" style="display:none;margin-top:6px;">
-            <input type="text" id="l3NewName" class="inp" placeholder="New Level 3 name" style="width:100%;">
-          </div>
+        <div class="fgroup" id="grp3" style="display:none;">
+          <label class="lbl">Level 3 — Parent Head</label>
+          <select id="sel3" class="sel" style="width:100%;"></select>
         </div>
+        <div class="fgroup" id="grp4" style="display:none;">
+          <label class="lbl">Level 4 — Child Account</label>
+          <select id="sel4" class="sel" style="width:100%;"></select>
+        </div>
+
+        <div class="code-preview" id="codePreview">
+          <div class="cp-code" id="cpCode"></div>
+          <div class="cp-level" id="cpLevel"></div>
+        </div>
+
         <div class="fgroup">
           <label class="lbl">Account Name</label>
           <input type="text" name="name" id="acctName" class="inp" placeholder="Enter account name" style="width:100%;">
         </div>
         <div class="fgroup">
           <label class="lbl">Description</label>
-          <textarea name="description" class="inp" style="width:100%;min-height:70px;"></textarea>
+          <textarea name="description" class="inp" style="width:100%;min-height:60px;"></textarea>
         </div>
         <input type="hidden" name="parent_id" id="parentIdInput" value="{{ parent_id or '' }}">
         {% endif %}
+
+        {# ── REPORT TAGS (both modes) ── #}
+        <div style="border-top:1px solid #e2e8f0;margin:18px 0 14px;padding-top:14px;">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Report Tags</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+            <div class="fgroup">
+              <label class="lbl">Cash-Flow Activity</label>
+              <select name="cash_flow_activity" class="sel" style="width:100%;">
+                <option value="">Inherit from parent</option>
+                {% for cf in cf_activities %}
+                <option value="{{ cf }}" {{ 'selected' if account and account.cash_flow_activity == cf }}>{{ cf|title }}</option>
+                {% endfor %}
+              </select>
+              <div class="tag-help">Where this account's movements appear in the cash-flow statement. "Cash" marks cash &amp; equivalent accounts themselves.</div>
+            </div>
+            <div class="fgroup">
+              <label class="lbl">P&amp;L Section</label>
+              <select name="pl_section" class="sel" style="width:100%;">
+                <option value="">Inherit from parent</option>
+                {% for pl in pl_sections %}
+                <option value="{{ pl }}" {{ 'selected' if account and account.pl_section == pl }}>{{ pl|replace('_',' ')|title }}</option>
+                {% endfor %}
+              </select>
+              <div class="tag-help">Which Profit &amp; Loss section this account reports under (revenue/expense accounts only).</div>
+            </div>
+          </div>
+          {% if account %}
+          <div class="tag-help">
+            Effective now: cash-flow = <strong>{{ account.effective_cash_flow_activity() or '—' }}</strong>,
+            P&amp;L section = <strong>{{ (account.effective_pl_section() or '—')|replace('_',' ') }}</strong>.
+          </div>
+          {% endif %}
+        </div>
 
         <div style="display:flex;gap:10px;margin-top:20px;">
           <button type="submit" class="btn btn-p">{{ 'Update' if account else 'Create' }}</button>
@@ -101,80 +139,82 @@
 {% if not account %}
 <script>
 (function(){
-  var l1 = document.getElementById('l1Select');
-  var l2 = document.getElementById('l2Select');
-  var l3 = document.getElementById('l3Select');
-  var l2Group = document.getElementById('l2Group');
-  var l3Group = document.getElementById('l3Group');
-  var l2NewRow = document.getElementById('l2NewRow');
-  var l3NewRow = document.getElementById('l3NewRow');
-  var l2NewName = document.getElementById('l2NewName');
-  var l3NewName = document.getElementById('l3NewName');
+  var sels = [document.getElementById('sel1'), document.getElementById('sel2'),
+              document.getElementById('sel3'), document.getElementById('sel4')];
+  var grps = [null, document.getElementById('grp2'), document.getElementById('grp3'),
+              document.getElementById('grp4')];
   var parentInput = document.getElementById('parentIdInput');
-  var nameInput = document.getElementById('acctName');
+  var preview = document.getElementById('codePreview');
+  var cpCode = document.getElementById('cpCode');
+  var cpLevel = document.getElementById('cpLevel');
+  var preselect = "{{ parent_id or '' }}";
 
-  function loadChildren(parentId, selectEl, nextGroup, newRow) {
-    selectEl.innerHTML = '<option value="">-- Select / Create --</option>';
-    if (!parentId) { nextGroup.style.display = 'none'; return; }
-    nextGroup.style.display = 'block';
-    newRow.style.display = 'none';
-    fetch('/accounting/coa/api/children?parent_id=' + parentId)
+  function deepestParent(){
+    for (var i = sels.length - 1; i >= 0; i--)
+      if (sels[i].value) return sels[i].value;
+    return '';
+  }
+
+  function refreshPreview(){
+    var pid = deepestParent();
+    parentInput.value = pid;
+    if (!pid){ preview.style.display = 'none'; return; }
+    fetch('/accounting/coa/api/next-code?parent_id=' + pid)
       .then(function(r){ return r.json(); })
-      .then(function(data){
-        data.forEach(function(c){
-          var opt = document.createElement('option');
-          opt.value = c.id;
-          opt.textContent = c.code + ' — ' + c.name;
-          selectEl.appendChild(opt);
-        });
-        // "Create new" option at the end
-        var createOpt = document.createElement('option');
-        createOpt.value = '__new__';
-        createOpt.textContent = '➕ Create new...';
-        selectEl.appendChild(createOpt);
+      .then(function(d){
+        if (!d.code){ preview.style.display = 'none'; return; }
+        cpCode.textContent = d.code;
+        cpLevel.textContent = 'Will be created as ' + d.level_label;
+        preview.style.display = 'block';
       });
   }
 
-  l1.addEventListener('change', function(){
-    loadChildren(this.value, l2, l2Group, l2NewRow);
-    l3Group.style.display = 'none';
-    parentInput.value = '';
-  });
-  l2.addEventListener('change', function(){
-    if (this.value === '__new__') {
-      l2NewRow.style.display = 'block';
-      l3Group.style.display = 'none';
-      parentInput.value = '';
-    } else {
-      l2NewRow.style.display = 'none';
-      parentInput.value = '';
-      loadChildren(this.value, l3, l3Group, l3NewRow);
+  function loadChildren(parentId, idx){
+    // idx = index of the select to fill (1..3)
+    for (var i = idx; i < sels.length; i++){
+      sels[i].innerHTML = '';
+      if (grps[i]) grps[i].style.display = 'none';
     }
-  });
-  l3.addEventListener('change', function(){
-    if (this.value === '__new__') {
-      l3NewRow.style.display = 'block';
-      parentInput.value = l2.value;
-    } else {
-      l3NewRow.style.display = 'none';
-      parentInput.value = this.value;
-    }
-  });
-  l2NewName.addEventListener('input', function(){
-    if (this.value.trim()) parentInput.value = l1.value;
-  });
-  l3NewName.addEventListener('input', function(){
-    if (this.value.trim() && l2.value && l2.value !== '__new__') parentInput.value = l2.value;
+    if (!parentId){ refreshPreview(); return; }
+    fetch('/accounting/coa/api/children?parent_id=' + parentId)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (idx < sels.length && data.length){
+          var sel = sels[idx];
+          sel.innerHTML = '<option value="">-- Create the account here --</option>';
+          data.forEach(function(c){
+            if (c.level >= 5) return;   // level-5 accounts cannot be parents
+            var opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.code + ' — ' + c.name;
+            sel.appendChild(opt);
+          });
+          if (sel.options.length > 1 && grps[idx]) grps[idx].style.display = 'block';
+        }
+        refreshPreview();
+      });
+  }
+
+  sels.forEach(function(sel, i){
+    sel.addEventListener('change', function(){
+      loadChildren(this.value, i + 1);
+    });
   });
 
-  // Form submit: if creating new level, generate name
-  document.querySelector('form').addEventListener('submit', function(e){
-    if (l2NewRow.style.display === 'block' && l2NewName.value.trim()) {
-      nameInput.value = l2NewName.value.trim();
-    } else if (l3NewRow.style.display === 'block' && l3NewName.value.trim()) {
-      nameInput.value = l3NewName.value.trim();
-    }
-  });
+  if (preselect){
+    // Deep-linked "+ Child": resolve the chain server-side is overkill; just
+    // set the hidden parent and show the preview.
+    parentInput.value = preselect;
+    fetch('/accounting/coa/api/next-code?parent_id=' + preselect)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d.code){
+          cpCode.textContent = d.code;
+          cpLevel.textContent = 'Will be created as ' + d.level_label;
+          preview.style.display = 'block';
+        }
+      });
+  }
 })();
 </script>
 {% endif %}

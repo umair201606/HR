@@ -119,12 +119,11 @@ summary{cursor:pointer}
     <summary>
       <span><strong>{{ sec.account.code }}</strong> — {{ sec.account.name }} <span class="text-slate-400 text-xs">({{ sec.account.type }})</span></span>
       <span style="font-size:13px;font-weight:600;color:{{ '#16a34a' if sec.subtotal >= 0 else '#dc2626' }};">
-        {{ "{:,.2f}".format(sec.subtotal) }}
+        {{ "{:,.2f}".format(sec.closing) }} {{ sec.closing_side }}
       </span>
     </summary>
     <div style="overflow-x:auto;">
-      {% if sec.rows %}
-      <table class="report-table" style="font-size:12px;">
+      <table class="report-table statement" style="font-size:12px;">
         <thead>
           <tr>
             <th>Date</th>
@@ -136,6 +135,12 @@ summary{cursor:pointer}
           </tr>
         </thead>
         <tbody>
+          <tr class="opening-row">
+            <td colspan="3">Opening Balance</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+            <td class="num">{{ "{:,.2f}".format(sec.opening) }} {{ sec.opening_side }}</td>
+          </tr>
           {% for r in sec.rows %}
           <tr>
             <td>{{ r.date }}</td>
@@ -145,18 +150,23 @@ summary{cursor:pointer}
             <td class="num">{{ "{:,.2f}".format(r.credit) if r.credit else "—" }}</td>
             <td class="num font-semibold">{{ "{:,.2f}".format(r.balance) }}</td>
           </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-slate-500 text-center" style="padding:14px;">No transactions in this period.</td></tr>
           {% endfor %}
         </tbody>
         <tfoot>
-          <tr style="font-weight:700;background:#f1f5f9;">
-            <td colspan="5" style="text-align:right;">Subtotal</td>
-            <td class="num">{{ "{:,.2f}".format(sec.subtotal) }}</td>
+          <tr class="subtotal-row">
+            <td colspan="3" style="text-align:right;">Movement during period</td>
+            <td class="num">{{ "{:,.2f}".format(sec.total_debit) }}</td>
+            <td class="num">{{ "{:,.2f}".format(sec.total_credit) }}</td>
+            <td></td>
+          </tr>
+          <tr class="closing-row" style="font-weight:700;background:#f1f5f9;">
+            <td colspan="5" style="text-align:right;">Closing Balance</td>
+            <td class="num">{{ "{:,.2f}".format(sec.closing) }} {{ sec.closing_side }}</td>
           </tr>
         </tfoot>
       </table>
-      {% else %}
-      <p class="text-slate-500 text-center py-6">No transactions in this period.</p>
-      {% endif %}
     </div>
   </details>
   {% endfor %}

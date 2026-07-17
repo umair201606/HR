@@ -3,58 +3,85 @@
 {% block page_title %}Chart of Accounts{% endblock %}
 {% block extra_css %}
 <style>
-.tree-row{display:flex;align-items:center;padding:6px 10px;border-bottom:1px solid #e2e8f0;font-size:13px;transition:background .1s}
+.coa-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+.coa-search{position:relative;flex:1;max-width:420px}
+.coa-search input{width:100%;padding:9px 12px 9px 34px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;transition:border-color .12s,box-shadow .12s}
+.coa-search input:focus{border-color:#0f5257;box-shadow:0 0 0 3px rgba(15,82,87,.12)}
+.coa-search::before{content:'\1F50D';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.5}
+.coa-legend{display:flex;gap:10px;align-items:center;font-size:11px;color:#64748b;flex-wrap:wrap}
+.coa-legend .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+.tree-header{display:flex;align-items:center;padding:10px 12px;background:#f1f5f9;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;border-bottom:2px solid #0f5257;position:sticky;top:0;z-index:5}
+.tree-row{display:flex;align-items:center;padding:5px 12px;border-bottom:1px solid #f1f5f9;font-size:13px;transition:background .1s}
 .tree-row:hover{background:#f8fafc}
-.tree-row .indent{display:inline-block;min-width:20px}
-.tree-row .lvl-badge{display:inline-block;width:20px;height:20px;border-radius:4px;text-align:center;line-height:20px;font-size:10px;font-weight:700;color:#fff;margin-right:10px;flex-shrink:0}
-.lvl1{background:#1e293b}
-.lvl2{background:#475569}
-.lvl3{background:#64748b}
-.lvl4{background:#94a3b8}
-.tree-row .acct-name{font-weight:500;color:#1e293b}
-.tree-row .acct-code{color:#94a3b8;font-family:monospace;font-size:11px;margin-left:8px}
-.tree-row .acct-type{font-size:11px;color:#94a3b8;margin-left:10px;font-style:italic}
-.tree-row .actions{margin-left:auto;display:flex;gap:4px;flex-shrink:0}
-.tree-row .fixed-badge{font-size:10px;background:#e0f2f1;color:#0f5257;padding:1px 6px;border-radius:4px;margin-left:8px}
-.bdg-bsm{display:inline-block;padding:2px 8px;font-size:11px;border-radius:4px;text-decoration:none}
-.tree-header{display:flex;align-items:center;padding:8px 10px;background:#f1f5f9;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #0f5257}
+.tree-row.inactive{opacity:.45}
+.tree-row.hidden{display:none}
+.tree-row .indent{display:inline-block;flex-shrink:0}
+.tw{width:22px;height:22px;border:none;background:transparent;cursor:pointer;color:#64748b;font-size:10px;flex-shrink:0;border-radius:4px;padding:0;line-height:22px;text-align:center}
+.tw:hover{background:#e2e8f0}
+.tw.leafpad{cursor:default;visibility:hidden}
+.lvl-badge{display:inline-block;min-width:20px;height:20px;border-radius:4px;text-align:center;line-height:20px;font-size:10px;font-weight:700;color:#fff;margin-right:9px;flex-shrink:0}
+.lvl1{background:#0f172a}.lvl2{background:#334155}.lvl3{background:#64748b}.lvl4{background:#94a3b8}.lvl5{background:#0f5257}
+.acct-code{color:#64748b;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;min-width:150px;flex-shrink:0}
+.acct-name{font-weight:500;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tree-row[data-level="1"] .acct-name,.tree-row[data-level="2"] .acct-name{font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.4px}
+.tree-row[data-level="3"] .acct-name{font-weight:600}
+.chip{font-size:9.5px;font-weight:700;letter-spacing:.3px;padding:2px 7px;border-radius:10px;margin-left:6px;flex-shrink:0;text-transform:uppercase}
+.chip-fixed{background:#e0f2f1;color:#0f5257}
+.chip-post{background:#ecfdf5;color:#047857}
+.chip-cf-operating{background:#eff6ff;color:#1d4ed8}
+.chip-cf-investing{background:#f3e8ff;color:#7c3aed}
+.chip-cf-financing{background:#fff7ed;color:#c2410c}
+.chip-cf-cash{background:#ecfeff;color:#0e7490}
+.chip-pl{background:#fefce8;color:#a16207}
+.chip-inactive{background:#fef2f2;color:#dc2626}
+.actions{margin-left:auto;display:flex;gap:4px;flex-shrink:0;align-items:center}
+.bdg-bsm{display:inline-block;padding:2px 9px;font-size:11px;border-radius:4px;text-decoration:none;font-weight:600}
+.tree-empty{text-align:center;padding:40px;color:#94a3b8}
 </style>
 {% endblock %}
 {% block content %}
 <div class="wrap">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
-    <span style="font-size:14px;color:#64748b;">{{ tree|length }} accounts</span>
+  <div class="coa-toolbar">
+    <div class="coa-search">
+      <input type="text" id="coaSearch" placeholder="Search by code or name..." autocomplete="off">
+    </div>
+    <div class="coa-legend">
+      <span><span class="dot" style="background:#0f5257;"></span>Level 5 = posting level</span>
+      <span><span class="dot" style="background:#94a3b8;"></span>Levels 1–4 aggregate only</span>
+      <button type="button" class="bdg-bsm" id="expandAll" style="background:#eef2ff;color:#4338ca;border:none;cursor:pointer;">Expand all</button>
+      <button type="button" class="bdg-bsm" id="collapseAll" style="background:#eef2ff;color:#4338ca;border:none;cursor:pointer;">Collapse all</button>
+    </div>
     <a href="{{ url_for('coa.add_account') }}" class="btn btn-p">+ New Account</a>
   </div>
 
-  <div class="card" style="padding:0;">
+  <div class="card" style="padding:0;overflow:visible;">
     <div class="tree-header">
-      <span style="width:30px;"></span>
       <span style="flex:1;">Account</span>
-      <span style="width:120px;text-align:center;">Level</span>
-      <span style="width:80px;text-align:center;">Children</span>
-      <span style="width:140px;text-align:center;">Actions</span>
+      <span style="width:270px;text-align:right;">Tags &amp; Actions</span>
     </div>
+    <div id="coaTree">
     {% for row in tree %}
     {% set a = row.acct %}
     {% set d = row.depth %}
-    <div class="tree-row">
-      <span class="indent" style="width:{{ d * 24 }}px;"></span>
+    <div class="tree-row {{ 'inactive' if not a.is_active }}" data-level="{{ a.level }}" data-depth="{{ d }}"
+         data-code="{{ a.code|lower }}" data-name="{{ a.name|lower }}" data-haschildren="{{ 1 if row.has_children else 0 }}">
+      <span class="indent" style="width:{{ d * 22 }}px;"></span>
+      {% if row.has_children %}
+      <button type="button" class="tw" title="Expand / collapse">&#9660;</button>
+      {% else %}
+      <button type="button" class="tw leafpad">&#9660;</button>
+      {% endif %}
       <span class="lvl-badge lvl{{ a.level }}">{{ a.level }}</span>
-      <span class="acct-name">{{ a.name }}</span>
       <span class="acct-code">{{ a.code }}</span>
-      <span class="acct-type">{{ a.type }}</span>
-      {% if a.is_fixed %}<span class="fixed-badge">fixed</span>{% endif %}
-      {% if not a.is_active %}<span style="font-size:10px;color:#ef4444;margin-left:6px;">inactive</span>{% endif %}
-      <span style="margin-left:auto;font-size:11px;color:#94a3b8;width:120px;text-align:center;">
-        {{ level_labels.get(a.level, '') }}
-      </span>
-      <span style="width:80px;text-align:center;font-size:11px;color:#64748b;">
-        {{ a.children|length if a.children is defined else 0 }}
-      </span>
-      <span class="actions" style="width:140px;justify-content:center;">
-        {% if a.level < 4 %}
-          <a href="{{ url_for('coa.add_account', parent_id=a.id) }}" class="bdg-bsm" style="background:#e0f2f1;color:#0f5257;">+Child</a>
+      <span class="acct-name" title="{{ a.display_path() }}">{{ a.name }}</span>
+      {% if a.level >= 5 %}<span class="chip chip-post">post</span>{% endif %}
+      {% if a.is_fixed %}<span class="chip chip-fixed">fixed</span>{% endif %}
+      {% if a.cash_flow_activity %}<span class="chip chip-cf-{{ a.cash_flow_activity }}">{{ a.cash_flow_activity }}</span>{% endif %}
+      {% if a.pl_section %}<span class="chip chip-pl">{{ a.pl_section|replace('_',' ') }}</span>{% endif %}
+      {% if not a.is_active %}<span class="chip chip-inactive">inactive</span>{% endif %}
+      <span class="actions">
+        {% if a.level < 5 %}
+          <a href="{{ url_for('coa.add_account', parent_id=a.id) }}" class="bdg-bsm" style="background:#e0f2f1;color:#0f5257;">+ Child</a>
         {% endif %}
         <a href="{{ url_for('coa.edit_account', id=a.id) }}" class="bdg-bsm" style="background:#eef2ff;color:#4338ca;">Edit</a>
         {% if a.can_delete() %}
@@ -65,8 +92,80 @@
       </span>
     </div>
     {% else %}
-    <div style="text-align:center;padding:40px;color:#94a3b8;">No accounts. Seed the database first.</div>
+    <div class="tree-empty">No accounts. Seed the database first.</div>
     {% endfor %}
+    </div>
   </div>
+  <p style="font-size:12px;color:#94a3b8;margin-top:10px;">
+    Journal entries can only be posted to <strong>level-5 operational accounts</strong>; levels 1–4 aggregate their children's balances automatically.
+    Cash-flow and P&amp;L tags are inherited from the nearest tagged parent unless set on the account itself.
+  </p>
 </div>
+
+<script>
+(function(){
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#coaTree .tree-row'));
+
+  function setCollapsed(row, collapsed){
+    row.dataset.collapsed = collapsed ? '1' : '';
+    var tw = row.querySelector('.tw');
+    if (tw && !tw.classList.contains('leafpad')) tw.innerHTML = collapsed ? '&#9654;' : '&#9660;';
+    applyVisibility();
+  }
+
+  function applyVisibility(){
+    // A row is visible only if none of its ancestors are collapsed.
+    var hideBelow = [];   // stack of depths whose subtrees are hidden
+    rows.forEach(function(row){
+      var depth = +row.dataset.depth;
+      while (hideBelow.length && depth <= hideBelow[hideBelow.length-1]) hideBelow.pop();
+      var hidden = hideBelow.length > 0;
+      row.classList.toggle('hidden', hidden);
+      if (row.dataset.collapsed === '1') hideBelow.push(depth);
+    });
+  }
+
+  rows.forEach(function(row){
+    var tw = row.querySelector('.tw');
+    if (tw && !tw.classList.contains('leafpad')){
+      tw.addEventListener('click', function(){
+        setCollapsed(row, row.dataset.collapsed !== '1');
+      });
+    }
+  });
+
+  document.getElementById('expandAll').addEventListener('click', function(){
+    rows.forEach(function(r){ r.dataset.collapsed=''; var t=r.querySelector('.tw'); if(t&&!t.classList.contains('leafpad'))t.innerHTML='&#9660;'; });
+    applyVisibility();
+  });
+  document.getElementById('collapseAll').addEventListener('click', function(){
+    rows.forEach(function(r){ if(+r.dataset.level<=2 && r.dataset.haschildren==='1'){ r.dataset.collapsed='1'; var t=r.querySelector('.tw'); if(t)t.innerHTML='&#9654;'; } else { r.dataset.collapsed=''; } });
+    applyVisibility();
+  });
+
+  // Search: show matches plus all their ancestors; empty query restores tree state.
+  var search = document.getElementById('coaSearch');
+  search.addEventListener('input', function(){
+    var q = this.value.trim().toLowerCase();
+    if (!q){ applyVisibility(); return; }
+    var visible = new Array(rows.length).fill(false);
+    var ancestors = [];  // index stack by depth
+    rows.forEach(function(row, i){
+      var depth = +row.dataset.depth;
+      ancestors.length = depth;
+      ancestors[depth] = i;
+      if (row.dataset.code.indexOf(q) !== -1 || row.dataset.name.indexOf(q) !== -1){
+        visible[i] = true;
+        for (var d = 0; d < depth; d++) if (ancestors[d] !== undefined) visible[ancestors[d]] = true;
+      }
+    });
+    rows.forEach(function(row, i){ row.classList.toggle('hidden', !visible[i]); });
+  });
+
+  // Default view: start with level-5 detail collapsed under level 4 so the
+  // structural tree reads at a glance.
+  rows.forEach(function(r){ if(+r.dataset.level===4 && r.dataset.haschildren==='1'){ r.dataset.collapsed='1'; var t=r.querySelector('.tw'); if(t)t.innerHTML='&#9654;'; } });
+  applyVisibility();
+})();
+</script>
 {% endblock %}

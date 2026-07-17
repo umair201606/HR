@@ -30,10 +30,11 @@ def _cost_from_ledger(pid):
 
 
 def _charge_accounts():
-    """Level-4 accounts a voucher's value can be charged to (expenses,
-    employee accounts, receivables, projects...)."""
-    return ChartOfAccount.query.filter_by(level=4, is_active=True).order_by(
-        ChartOfAccount.code).all()
+    """Postable (level-5 operational) accounts a voucher's value can be
+    charged to (expenses, employee accounts, receivables, projects...)."""
+    return ChartOfAccount.query.filter(
+        ChartOfAccount.level >= ChartOfAccount.POSTING_LEVEL,
+        ChartOfAccount.is_active == True).order_by(ChartOfAccount.code).all()
 
 
 def _post_voucher_journal(vtype, v, lines):

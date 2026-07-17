@@ -8,7 +8,7 @@ from inventory_app.models.purchase_invoice import InvPurchaseInvoice, InvPurchas
 from inventory_app.models.supplier import InvSupplier
 from inventory_app.models.product import InvProduct
 from inventory_app.models.stock_movement import InvStockMovement
-from shared.ledger_utils import post_journal_entry, reverse_journal_entry, posting_account
+from shared.ledger_utils import post_journal_entry, reverse_journal_entry, posting_account, party_account
 from shared.models.ledger import ChartOfAccount
 from shared.permissions import deny_json
 from shared.costing import record_out, reverse_voucher_stock
@@ -251,7 +251,9 @@ def save_return():
                            created_by=current_user.id)
 
     if action == "approve":
-        ap_acc = posting_account("ap")
+        # Debit the same supplier account the original invoice credited.
+        ap_acc = party_account("supplier", ret.supplier_id,
+                               ret.supplier.name if ret.supplier else None)
         inv_acc = posting_account("inventory")
         if ap_acc and inv_acc:
             post_journal_entry(

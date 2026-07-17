@@ -8,7 +8,7 @@ from inventory_app.models.customer import InvCustomer
 from inventory_app.models.product import InvProduct
 from inventory_app.models.stock_movement import InvStockMovement
 from inventory_app.models.sales_order import InvSalesOrder
-from shared.ledger_utils import post_journal_entry, reverse_journal_entry, posting_account
+from shared.ledger_utils import post_journal_entry, reverse_journal_entry, posting_account, party_account
 from shared.models.ledger import ChartOfAccount
 from shared.permissions import deny_json, deny_page
 from shared.costing import record_out, reverse_voucher_stock
@@ -54,9 +54,11 @@ def invoice_form(id):
                 "total_before_discount": it.total_before_discount,
                 "total_after_discount": it.total_after_discount,
             })
+    from shared.models.company_settings import ReportSettings
     return render_template("invoices/form_inv.html",
                            invoice=invoice, invoice_items=invoice_items,
                            customers=customers,
+                           party_mode=ReportSettings.get().invoice_party_mode,
                            products=products, now=datetime.utcnow())
 
 
@@ -118,6 +120,7 @@ def save_invoice():
             return jsonify({"ok": False, "error": "; ".join(validation_errors)}), 400
 
     inv.customer_id = data.get("customer_id")
+    inv.party_account_id = data.get("party_account_id") or None
     inv.due_date = datetime.strptime(data.get("due_date"), "%Y-%m-%d") if data.get("due_date") else None
     inv.discount_mode = data.get("discount_mode", "general")
     inv.charges_mode = data.get("charges_mode", "general")
@@ -186,7 +189,11 @@ def save_invoice():
                 total_cogs += line_cogs
 
     if action == "approve":
-        ar_acc = posting_account("ar")
+        # Receivable posts to the customer's own subledger account (or an
+        # explicit override), so the customer's ledger carries the balance.
+        ar_acc = party_account("customer", inv.customer_id,
+                               inv.customer.name if inv.customer else None,
+                               inv.party_account_id)
         rev_acc = posting_account("revenue")
         cogs_acc = posting_account("cogs")
         inv_acc = posting_account("inventory")
@@ -306,7 +313,11 @@ def pay_invoice(id):
         else:
             inv.payment_status = "partial"
         cash_acc = posting_account("cash")
-        ar_acc = posting_account("ar")
+        # Credit the same account the invoice debited, so the customer's
+        # ledger nets to the unpaid balance.
+        ar_acc = party_account("customer", inv.customer_id,
+                               inv.customer.name if inv.customer else None,
+                               inv.party_account_id)
         if cash_acc and ar_acc:
             post_journal_entry(
                 voucher_type="PMT",

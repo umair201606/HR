@@ -435,7 +435,10 @@ def delete_voucher(id):
 def api_accounts():
     q = request.args.get("q", "").strip()
     exclude = request.args.get("exclude", type=int)
-    query = ChartOfAccount.query.filter_by(is_active=True)
+    # Only level-5 operational accounts are postable; aggregating accounts
+    # (levels 1-4) must never appear in a posting picker.
+    query = ChartOfAccount.query.filter_by(is_active=True).filter(
+        ChartOfAccount.level >= ChartOfAccount.POSTING_LEVEL)
     if q:
         query = query.filter(
             db.or_(
@@ -459,9 +462,13 @@ def api_cash_bank_accounts():
     query = ChartOfAccount.query.filter(
         ChartOfAccount.is_active == True,
         ChartOfAccount.type == "asset",
+        ChartOfAccount.level >= ChartOfAccount.POSTING_LEVEL,
         db.or_(
             ChartOfAccount.name.ilike("%cash%"),
             ChartOfAccount.name.ilike("%bank%"),
+            # Anything under Cash & Cash Equivalents (1-01-01-...) counts,
+            # whatever it is named (e.g. "Meezan Riyadh Branch").
+            ChartOfAccount.code.like("1-01-01-%"),
         ),
     )
     if q:

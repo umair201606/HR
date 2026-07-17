@@ -9,6 +9,9 @@ class InvInvoice(db.Model):
     voucher_number = db.Column(db.String(50), unique=True, nullable=False)
     sales_order_id = db.Column(db.Integer, db.ForeignKey("inv_sales_orders.id"))
     customer_id = db.Column(db.Integer, db.ForeignKey("inv_customers.id"), nullable=False)
+    # Set when settings allow picking an arbitrary ledger account as the
+    # counterparty; the AR posting then debits this instead of the customer.
+    party_account_id = db.Column(db.Integer, db.ForeignKey("chart_of_accounts.id"))
     invoice_date = db.Column(db.DateTime, default=datetime.utcnow)
     due_date = db.Column(db.DateTime)
     voucher_status = db.Column(db.String(20), default="unapproved")

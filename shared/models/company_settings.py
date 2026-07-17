@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, date
 from shared.extensions import db
 
@@ -32,6 +33,66 @@ class CompanyInfo(db.Model):
             db.session.add(c)
             db.session.commit()
         return c
+
+
+# Default P&L layout: ordered rows, each either an account section (grouped by
+# ChartOfAccount.effective_pl_section()) or a subtotal line whose label the
+# user can rename ("Gross Profit" -> "Gross Margin", ...). Stored as JSON so
+# the settings UI can reorder/rename without schema changes.
+DEFAULT_PL_STRUCTURE = [
+    {"section": "sales", "label": "Sales"},
+    {"section": "sales_returns", "label": "Less: Sales Returns & Discounts", "negate": True},
+    {"subtotal": "net_sales", "label": "Net Sales"},
+    {"section": "cost_of_sales", "label": "Cost of Sales", "negate": True},
+    {"subtotal": "gross_profit", "label": "Gross Profit"},
+    {"section": "admin", "label": "Administrative Expenses", "negate": True},
+    {"section": "selling_distribution", "label": "Selling & Distribution Expenses", "negate": True},
+    {"section": "other_operating", "label": "Other Operating Expenses", "negate": True},
+    {"subtotal": "operating_profit", "label": "Operating Profit"},
+    {"section": "other_income", "label": "Other Income"},
+    {"section": "finance_cost", "label": "Finance Costs", "negate": True},
+    {"subtotal": "profit_before_tax", "label": "Profit Before Tax"},
+    {"section": "income_tax", "label": "Taxation", "negate": True},
+    {"subtotal": "net_profit", "label": "Net Profit"},
+]
+
+PL_SECTIONS = ["sales", "sales_returns", "other_income", "cost_of_sales",
+               "admin", "selling_distribution", "other_operating",
+               "finance_cost", "income_tax"]
+
+
+class ReportSettings(db.Model):
+    __tablename__ = "report_settings"
+    id = db.Column(db.Integer, primary_key=True)
+    pl_structure_json = db.Column(db.Text)  # JSON list; null -> DEFAULT_PL_STRUCTURE
+    # Accounts listed per P&L section before collapsing the rest into "Others".
+    pl_detail_rows = db.Column(db.Integer, default=10)
+    # Invoice party picker: "relevant" = suppliers/customers only,
+    # "all" = any postable ledger account may be the counterparty.
+    invoice_party_mode = db.Column(db.String(10), default="relevant")
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @classmethod
+    def get(cls):
+        s = cls.query.first()
+        if not s:
+            s = cls()
+            db.session.add(s)
+            db.session.commit()
+        return s
+
+    def pl_structure(self):
+        if self.pl_structure_json:
+            try:
+                rows = json.loads(self.pl_structure_json)
+                if isinstance(rows, list) and rows:
+                    return rows
+            except (ValueError, TypeError):
+                pass
+        return DEFAULT_PL_STRUCTURE
+
+    def set_pl_structure(self, rows):
+        self.pl_structure_json = json.dumps(rows) if rows else None
 
 
 class AccountingPeriod(db.Model):

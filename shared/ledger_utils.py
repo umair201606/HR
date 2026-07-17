@@ -4,33 +4,33 @@ from shared.models.ledger import JournalEntry, JournalLine, ChartOfAccount
 
 
 # ── Canonical posting accounts ───────────────────────────────────────────────
-# Postings must never hardcode a chart-of-accounts *code*, because different
-# databases were seeded with different numbering schemes (production uses the
-# flat 1000-series; a fresh install of the current seed uses the 111-series).
-# Map each semantic ROLE to a canonical code plus any legacy alternates, and
-# resolve at posting time — creating the account only if none exist. This keeps
-# invoice/voucher postings working regardless of which COA a DB happens to have.
-# role -> (canonical_code, name, type, [alternate_codes])
+# Postings must never hardcode a chart-of-accounts *code*: they resolve a
+# semantic ROLE to the canonical level-5 operational account in the fixed
+# segmented chart (shared/coa.py). Legacy alternates cover databases that have
+# not run the startup migration yet (flat 1000-series or old 111-series).
+# role -> (name, type, [legacy_alternate_codes]); canonical code from ROLE_CODES.
 POSTING_ACCOUNTS = {
-    "cash":              ("1000", "Cash & Bank", "asset", ["111"]),
-    "ar":                ("1100", "Accounts Receivable", "asset", ["112"]),
-    "inventory":         ("1200", "Inventory", "asset", ["113"]),
-    "fixed_assets":      ("1300", "Fixed Assets", "asset", ["121"]),
-    "input_tax":         ("1400", "Input Tax Recoverable", "asset", ["114"]),
-    "ap":                ("2000", "Accounts Payable", "liability", ["211"]),
-    "accrued":           ("2100", "Accrued Expenses", "liability", ["212"]),
-    "loans":             ("2200", "Loans Payable", "liability", ["221"]),
-    "wht_payable":       ("6400", "Withholding Tax Payable", "liability", ["214"]),
-    "sales_tax_payable": ("6500", "Sales Tax Payable", "liability", ["213"]),
-    "revenue":           ("4000", "Sales Revenue", "revenue", ["411"]),
-    "cogs":              ("5000", "Cost of Goods Sold", "expense", ["511"]),
+    "cash":              ("Main Cash", "asset", ["1000", "111"]),
+    "ar":                ("Trade Debtors — General", "asset", ["1100", "112"]),
+    "inventory":         ("Stock — General", "asset", ["1200", "113"]),
+    "fixed_assets":      ("Fixed Assets — General", "asset", ["1300", "121"]),
+    "input_tax":         ("Input Sales Tax", "asset", ["1400", "114"]),
+    "ap":                ("Trade Creditors — General", "liability", ["2000", "211"]),
+    "accrued":           ("Accrued Expenses — General", "liability", ["2100", "212"]),
+    "loans":             ("Long-term Loans — General", "liability", ["2200", "221"]),
+    "wht_payable":       ("WHT Payable", "liability", ["6400", "214"]),
+    "sales_tax_payable": ("Output Sales Tax", "liability", ["6500", "213"]),
+    "revenue":           ("Sales — General", "revenue", ["4000", "411"]),
+    "cogs":              ("Cost of Goods Sold", "expense", ["5000", "511"]),
 }
 
 
 def posting_account(role):
     """Resolve a semantic posting role to a ChartOfAccount, creating it if the
     canonical and all legacy codes are absent. Never returns None."""
-    code, name, type_, alts = POSTING_ACCOUNTS[role]
+    from shared.coa import ROLE_CODES
+    name, type_, alts = POSTING_ACCOUNTS[role]
+    code = ROLE_CODES[role]
     acct = ChartOfAccount.query.filter_by(code=code).first()
     if acct:
         return acct
@@ -54,6 +54,18 @@ def post_journal_entry(voucher_type, voucher_id, voucher_number, description,
             f"Unbalanced journal for {voucher_number}: "
             f"debits {total_debit} != credits {total_credit}"
         )
+    # Aggregating accounts (levels 1-4) only roll up child balances — a line
+    # posted there would double-count against its children in every report.
+    for l in lines:
+        acct = ChartOfAccount.query.get(l["account_id"])
+        if acct is None:
+            raise ValueError(f"Journal for {voucher_number} references "
+                             f"unknown account id {l['account_id']}")
+        if not acct.is_postable:
+            raise ValueError(
+                f"Cannot post to aggregating account {acct.code} {acct.name} "
+                f"(level {acct.level}); post to a level-5 operational account."
+            )
     je = JournalEntry(
         voucher_type=voucher_type,
         voucher_id=voucher_id,
@@ -102,33 +114,33 @@ def reverse_journal_entry(voucher_type, voucher_id, created_by=1):
     db.session.flush()
 
 
-# ── Per-entity level-4 subledger accounts ───────────────────────────────────
-# Every supplier / customer / product / employee / loan gets its own level-4
-# account under the matching control account, so the name shows up in ledgers.
-# kind -> (posting role for the parent control account, code prefix, type)
-ENTITY_ACCOUNTS = {
-    "supplier": ("ap", "S", "liability"),        # under Trade Creditors / AP
-    "customer": ("ar", "C", "asset"),            # under Trade Debtors / AR
-    "product": ("inventory", "P", "asset"),      # under Inventory / Stock
-    "employee": ("accrued", "E", "liability"),   # payables under Accrued Expenses
-    "loan": ("ar", "L", "asset"),                # employee loan receivables
-}
+# ── Per-entity level-5 subledger accounts ───────────────────────────────────
+# Every supplier / customer / product / employee / loan gets its own level-5
+# operational account under the matching level-4 control account, so postings
+# hit the entity's own ledger and its name shows up in reports.
 
 
 def create_entity_account(kind, entity_id, name):
-    """Create (or fetch) the level-4 ledger account for a business entity.
+    """Create (or fetch) the level-5 ledger account for a business entity.
 
-    Idempotent: keyed on a deterministic code derived from the control
-    account's code + kind prefix + entity id. If the entity was renamed, the
-    account name is kept in sync so ledgers always show the current name.
+    Idempotent: keyed on a deterministic code — the level-4 parent's code plus
+    a segment of ``entity_id + 100`` (0001-0099 is reserved for seeded
+    defaults). If the entity was renamed, the account name is kept in sync so
+    ledgers always show the current name.
     """
-    role, prefix, type_ = ENTITY_ACCOUNTS[kind]
-    parent = posting_account(role)
-    code = f"{parent.code}-{prefix}{int(entity_id):04d}"
+    from shared.coa import ENTITY_PARENT_CODES, ENTITY_ID_OFFSET
+    parent = ChartOfAccount.query.filter_by(
+        code=ENTITY_PARENT_CODES[kind]).first()
+    if parent is None:
+        from shared.coa import seed_fixed_tree
+        seed_fixed_tree(levels=(1, 2, 3, 4))
+        parent = ChartOfAccount.query.filter_by(
+            code=ENTITY_PARENT_CODES[kind]).first()
+    code = f"{parent.code}-{int(entity_id) + ENTITY_ID_OFFSET:04d}"
     acct = ChartOfAccount.query.filter_by(code=code).first()
     if not acct:
-        acct = ChartOfAccount(code=code, name=name, type=type_,
-                              parent_id=parent.id, level=4)
+        acct = ChartOfAccount(code=code, name=name, type=parent.type,
+                              parent_id=parent.id, level=5)
         db.session.add(acct)
         db.session.flush()
     elif acct.name != name:
@@ -136,30 +148,63 @@ def create_entity_account(kind, entity_id, name):
     return acct
 
 
+def party_account(kind, entity_id, name, override_account_id=None):
+    """The ledger account an invoice's AR/AP side posts to.
+
+    Priority: an explicit override (settings may allow any postable account as
+    the counterparty) -> the entity's own subledger account -> the role's
+    "General" control account. Posting to the entity account is what makes
+    per-customer / per-supplier ledgers show real balances.
+    """
+    if override_account_id:
+        acct = ChartOfAccount.query.get(override_account_id)
+        if acct is not None and acct.is_postable:
+            return acct
+    if entity_id:
+        return create_entity_account(kind, entity_id, name or f"{kind} #{entity_id}")
+    return posting_account("ar" if kind == "customer" else "ap")
+
+
 def get_account_by_code(code):
     return ChartOfAccount.query.filter_by(code=code).first()
 
 
 def get_or_create_account(code, name, type_, parent_code=None):
-    acct = ChartOfAccount.query.filter_by(code=str(code)).first()
-    if not acct:
-        parent = None
-        if parent_code:
-            parent = ChartOfAccount.query.filter_by(code=str(parent_code)).first()
-        if not parent:
-            # Auto-discover parent by type hierarchy
-            coa_type_map = {"asset": "Assets", "liability": "Liabilities", "equity": "Equity",
-                            "revenue": "Revenue", "expense": "Expense", "contra-expense": "Expense"}
-            l1_name = coa_type_map.get(type_)
-            if l1_name:
-                l1 = ChartOfAccount.query.filter_by(name=l1_name, level=1).first()
-                if l1:
-                    l2 = ChartOfAccount.query.filter_by(parent_id=l1.id, level=2).first()
-                    if l2:
-                        parent = ChartOfAccount.query.filter_by(parent_id=l2.id, level=3).first()
-        acct = ChartOfAccount(code=str(code), name=name, type=type_,
-                              parent_id=parent.id if parent else None,
-                              level=4)
-        db.session.add(acct)
-        db.session.flush()
+    """Fetch an operational account by code, creating it under a sensible
+    level-4 parent if absent.
+
+    Legacy flat codes (``5700``, ``2121``, ...) from older call sites are
+    translated to their canonical slot in the fixed segmented chart, so both
+    pre- and post-migration databases resolve to the same account.
+    """
+    from shared.coa import (LEGACY_CODE_MAP, CATCHALL_PARENT_CODES,
+                            is_segmented, parent_code_of, next_child_code,
+                            seed_fixed_tree)
+    code = str(code)
+    acct = ChartOfAccount.query.filter_by(code=code).first()
+    if acct:
+        return acct
+    mapped = LEGACY_CODE_MAP.get(code)
+    if mapped:
+        acct = ChartOfAccount.query.filter_by(code=mapped).first()
+        if acct:
+            return acct
+        code = mapped
+    parent = None
+    if is_segmented(code):
+        parent = ChartOfAccount.query.filter_by(code=parent_code_of(code)).first()
+    if parent is None and parent_code:
+        legacy_parent = ChartOfAccount.query.filter_by(code=str(parent_code)).first()
+        if legacy_parent is not None and legacy_parent.level == 4:
+            parent = legacy_parent
+    if parent is None:
+        # Fall back to the type's catch-all level-4 head in the fixed tree.
+        seed_fixed_tree(levels=(1, 2, 3, 4))
+        parent = ChartOfAccount.query.filter_by(
+            code=CATCHALL_PARENT_CODES.get(type_, "5-04-01-01")).first()
+        code = next_child_code(parent)
+    acct = ChartOfAccount(code=code, name=name, type=type_,
+                          parent_id=parent.id, level=5)
+    db.session.add(acct)
+    db.session.flush()
     return acct

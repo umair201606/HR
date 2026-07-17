@@ -4,7 +4,9 @@ from flask_login import login_required, current_user
 from shared.extensions import db
 from shared.models.base import User, Role, Permission
 from shared.models.ledger import ChartOfAccount
-from shared.models.company_settings import CompanyInfo, AccountingPeriod
+from shared.models.company_settings import (CompanyInfo, AccountingPeriod,
+                                             ReportSettings, DEFAULT_PL_STRUCTURE,
+                                             PL_SECTIONS)
 from dateutil.relativedelta import relativedelta
 from datetime import timedelta
 
@@ -43,7 +45,55 @@ def index():
     return render_template("finance/settings.html", tab=tab, company=company,
                            periods=periods, users=users, roles=roles,
                            accounts=accounts, resources=resources,
+                           report_settings=ReportSettings.get(),
+                           pl_structure=ReportSettings.get().pl_structure(),
                            now=datetime.utcnow())
+
+
+# ═══════════════════════════════════════════════
+# REPORT STRUCTURE (P&L layout, invoice party mode)
+# ═══════════════════════════════════════════════
+
+@finance_settings_bp.route("/reports", methods=["POST"])
+@login_required
+def save_report_settings():
+    s = ReportSettings.get()
+    s.pl_detail_rows = request.form.get("pl_detail_rows", 10, type=int) or 10
+    mode = request.form.get("invoice_party_mode", "relevant")
+    s.invoice_party_mode = mode if mode in ("relevant", "all") else "relevant"
+
+    if request.form.get("reset_pl") == "1":
+        s.set_pl_structure(None)
+    else:
+        # Rebuild the structure from the posted per-row fields. Rows arrive as
+        # order[i] / label[i] plus the row's fixed identity (section or
+        # subtotal key), so users can rename and reorder but not corrupt the
+        # underlying accounting meaning.
+        rows = []
+        idx = 0
+        while True:
+            ident = request.form.get(f"row_ident_{idx}")
+            if ident is None:
+                break
+            label = (request.form.get(f"row_label_{idx}") or "").strip()
+            order = request.form.get(f"row_order_{idx}", idx, type=int)
+            kind, key = ident.split(":", 1)
+            entry = {"label": label or key.replace("_", " ").title()}
+            if kind == "section":
+                entry["section"] = key
+                if request.form.get(f"row_negate_{idx}") == "1":
+                    entry["negate"] = True
+            else:
+                entry["subtotal"] = key
+            rows.append((order, idx, entry))
+            idx += 1
+        if rows:
+            rows.sort(key=lambda t: (t[0], t[1]))
+            s.set_pl_structure([e for _o, _i, e in rows])
+
+    db.session.commit()
+    flash("Report settings updated", "success")
+    return redirect(url_for("finance_settings.index", tab="reports"))
 
 
 # ═══════════════════════════════════════════════

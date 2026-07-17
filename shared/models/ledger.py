@@ -4,19 +4,39 @@ from shared.extensions import db
 
 
 class ChartOfAccount(db.Model):
+    """Five-level segmented chart: 1 / 1-01 / 1-01-01 / 1-01-01-01 / 1-01-01-01-0001.
+
+    Levels 1-4 are aggregating accounts: they only roll up child balances and
+    must never carry journal lines. Level 5 is the operational level — the
+    only level journal entries may post to (enforced in post_journal_entry).
+    """
     __tablename__ = "chart_of_accounts"
+    POSTING_LEVEL = 5
+
     id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(20), unique=True, nullable=False)
+    code = db.Column(db.String(30), unique=True, nullable=False)
     name = db.Column(db.String(200), nullable=False)
     type = db.Column(db.String(50), nullable=False)
     parent_id = db.Column(db.Integer, db.ForeignKey("chart_of_accounts.id"), nullable=True)
-    level = db.Column(db.Integer, nullable=False, default=4)
+    level = db.Column(db.Integer, nullable=False, default=5)
     is_fixed = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
     description = db.Column(db.Text)
+    # Cash-flow statement activity: operating / investing / financing, or
+    # "cash" for cash-and-equivalent accounts (the statement's target figure).
+    # Null inherits from the nearest tagged ancestor.
+    cash_flow_activity = db.Column(db.String(20))
+    # P&L section: sales, sales_returns, other_income, cost_of_sales, admin,
+    # selling_distribution, other_operating, finance_cost, income_tax.
+    # Null inherits from the nearest tagged ancestor.
+    pl_section = db.Column(db.String(30))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     parent = db.relationship("ChartOfAccount", remote_side=[id], backref="children")
+
+    @property
+    def is_postable(self):
+        return self.level >= self.POSTING_LEVEL
 
     def is_leaf(self):
         return ChartOfAccount.query.filter_by(parent_id=self.id).count() == 0
@@ -31,6 +51,21 @@ class ChartOfAccount(db.Model):
             parts.append(a.name)
             a = a.parent
         return " > ".join(reversed(parts))
+
+    def _inherited(self, attr):
+        a = self
+        while a:
+            val = getattr(a, attr)
+            if val:
+                return val
+            a = a.parent
+        return None
+
+    def effective_cash_flow_activity(self):
+        return self._inherited("cash_flow_activity")
+
+    def effective_pl_section(self):
+        return self._inherited("pl_section")
 
 
 class JournalEntry(db.Model):
