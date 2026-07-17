@@ -264,6 +264,9 @@ def _migrate_schema(db):
         ("inv_invoice_items", "comments", "TEXT"),
         ("report_settings", "purchase_template_id", "INTEGER"),
         ("report_settings", "sales_template_id", "INTEGER"),
+        ("invoice_templates", "design", "VARCHAR(20)"),
+        ("invoice_templates", "accent_color", "VARCHAR(20)"),
+        ("invoice_templates", "options_json", "TEXT"),
     ]
 
     inspector = inspect(engine)
@@ -509,6 +512,9 @@ def _seed_all_data(app):
 
         # Costing engine: products holding stock from before the engine get an
         # opening cost layer so every future issue has a historic cost basis.
+        from shared.models.invoice_template import InvoiceTemplate
+        InvoiceTemplate.seed_defaults()
+
         from shared.costing import ensure_opening_balances, backfill_layers
         ensure_opening_balances(created_by=1)
         # Stock tracked before cost layers existed gets one layer at current

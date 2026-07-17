@@ -1,57 +1,317 @@
 {% extends "layouts/app_shell.html" %}
-{% block title %}{{ 'Edit' if template else 'New' }} Invoice Template{% endblock %}
-{% block page_title %}{{ 'Edit' if template else 'New' }} Invoice Template{% endblock %}
+{% set is_sales = doc_type == 'sales' %}
+{% block title %}{{ 'Edit' if template else 'New' }} {{ 'Sales' if is_sales else 'Purchase' }} Invoice Design{% endblock %}
+{% block page_title %}{{ 'Edit' if template else 'New' }} {{ 'Sales' if is_sales else 'Purchase' }} Invoice Design{% endblock %}
 {% block extra_css %}
 <style>
-  .tmpl-wrap{max-width:900px}
-  .tmpl-help{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;font-size:12.5px;margin-bottom:16px;line-height:1.6}
-  .tmpl-help code{background:#eef2ff;color:#4338ca;padding:1px 5px;border-radius:3px;font-size:11px}
-  .tmpl-help b{color:#0f172a}
+  .tf-grid{display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start}
+  .tf-panel{background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+  .tf-panel-h{padding:11px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#64748b}
+  .tf-panel-b{padding:16px}
+  .tf-step{display:flex;align-items:center;gap:8px}
+  .tf-step-n{width:19px;height:19px;border-radius:50%;background:#0f172a;color:#fff;
+    font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .tf-lead{font-size:12.5px;color:#64748b;margin:0 0 14px;line-height:1.55}
+
+  /* Design gallery */
+  .tf-designs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tf-design{border:2px solid #e2e8f0;border-radius:8px;padding:10px;cursor:pointer;
+    background:#fff;transition:border-color .12s,box-shadow .12s;text-align:left}
+  .tf-design:hover{border-color:#cbd5e1}
+  .tf-design.on{border-color:var(--accent,#0f766e);box-shadow:0 0 0 3px rgba(15,118,110,.1)}
+  .tf-design-name{font-size:13px;font-weight:700;color:#0f172a;margin-bottom:2px}
+  .tf-design-desc{font-size:11px;color:#64748b;line-height:1.45}
+  /* Tiny wireframe so the choice is visual, not just a name */
+  .tf-thumb{height:52px;border:1px solid #e2e8f0;border-radius:4px;margin-bottom:8px;
+    padding:5px;background:#fff;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+  .tf-bar{height:3px;border-radius:2px;background:#cbd5e1}
+  .tf-bar.accent{background:var(--accent,#0f766e)}
+  .tf-row{display:flex;gap:3px;align-items:center}
+  .tf-block{height:13px;border-radius:2px;background:var(--accent,#0f766e)}
+
+  /* Colours */
+  .tf-swatches{display:flex;flex-wrap:wrap;gap:7px}
+  .tf-sw{width:28px;height:28px;border-radius:50%;border:2px solid #fff;cursor:pointer;
+    box-shadow:0 0 0 1px #e2e8f0;transition:box-shadow .12s}
+  .tf-sw.on{box-shadow:0 0 0 2px #0f172a}
+
+  /* Toggles */
+  .tf-group{border-top:1px solid #f1f5f9;padding:11px 0 3px}
+  .tf-group:first-of-type{border-top:none;padding-top:0}
+  .tf-group-n{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;
+    color:#94a3b8;margin-bottom:7px}
+  .tf-opt{display:flex;gap:9px;padding:5px 0;cursor:pointer;align-items:flex-start}
+  .tf-opt input{margin:2px 0 0;flex:none;width:15px;height:15px;cursor:pointer;accent-color:#0f766e}
+  .tf-opt-l{font-size:13px;color:#0f172a;line-height:1.35}
+  .tf-opt-h{font-size:11px;color:#94a3b8;line-height:1.4;margin-top:1px}
+
+  /* Preview */
+  .tf-preview-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .tf-preview-wrap{background:#f1f5f9;padding:18px;min-height:520px;max-height:78vh;overflow:auto}
+  .tf-paper{background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.09);border-radius:2px;margin:0 auto;max-width:860px}
+  .tf-paper iframe{width:100%;border:0;display:block;min-height:900px}
+  .tf-sample{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+    color:#94a3b8;background:#fff;border:1px solid #e2e8f0;border-radius:99px;padding:2px 9px}
+
+  /* Advanced */
+  .tf-adv{border-top:1px solid #e2e8f0;margin-top:14px;padding-top:12px}
+  .tf-adv summary{cursor:pointer;font-size:12px;font-weight:600;color:#64748b;user-select:none}
+  .tf-adv summary:hover{color:#0f172a}
+  .tf-adv textarea{width:100%;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;
+    line-height:1.5;border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin-top:10px}
+  .tf-codes{margin-top:9px;font-size:11px;line-height:2;color:#64748b}
+  .tf-codes code{background:#eef2ff;color:#4338ca;padding:1px 5px;border-radius:3px;font-size:10.5px}
+  .tf-warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:6px;
+    padding:9px 11px;font-size:11.5px;line-height:1.5;margin-top:10px}
+
+  .tf-actions{display:flex;gap:9px;align-items:center;padding:13px 16px;
+    border-top:1px solid #e2e8f0;background:#f8fafc}
+  @media(max-width:1100px){.tf-grid{grid-template-columns:1fr}.tf-preview-wrap{max-height:none}}
 </style>
 {% endblock %}
 {% block content %}
-<div class="tmpl-wrap">
-  <div class="card">
-    <form method="POST" class="form">
-      <div class="form-row">
-        <div class="form-group" style="flex:2;">
-          <label>Template Name *</label>
-          <input type="text" name="name" class="form-control focus-ring" required value="{{ template.name if template else '' }}">
+<form method="POST" id="tfForm">
+  <input type="hidden" name="type" value="{{ doc_type }}">
+  <input type="hidden" name="design" id="designField" value="{{ template.design if template else 'classic' }}">
+  <input type="hidden" name="accent_color" id="accentField" value="{{ template.accent_color if template else '#0f766e' }}">
+
+  <div class="tf-grid">
+    <!-- ── LEFT: the choices ─────────────────────────────────── -->
+    <div>
+      <div class="tf-panel">
+        <div class="tf-panel-b">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Template name</label>
+            <input type="text" name="name" class="form-control focus-ring" required
+                   placeholder="e.g. Standard {{ 'Sales' if is_sales else 'Purchase' }} Invoice"
+                   value="{{ template.name if template else '' }}">
+            <p class="tf-lead" style="margin:6px 0 0;">Only you see this name. It is how
+              you pick this design later.</p>
+          </div>
+          <label class="tf-opt" style="margin-top:10px;">
+            <input type="checkbox" name="is_default" {% if not template or template.is_default %}checked{% endif %}>
+            <span>
+              <span class="tf-opt-l">Use this for every {{ 'sales' if is_sales else 'purchase' }} invoice</span>
+              <span class="tf-opt-h" style="display:block;">Printing uses this design unless another is chosen.</span>
+            </span>
+          </label>
         </div>
-        <div class="form-group" style="flex:1;">
-          <label>Type *</label>
-          <select name="type" class="form-control focus-ring" {{ 'disabled' if template else '' }}>
-            <option value="purchase" {% if template and template.type == 'purchase' %}selected{% endif %}>Procurement</option>
-            <option value="sales" {% if template and template.type == 'sales' %}selected{% endif %}>Sales</option>
-          </select>
+      </div>
+
+      <div class="tf-panel" style="margin-top:14px;">
+        <div class="tf-panel-h"><span class="tf-step"><span class="tf-step-n">1</span> Pick a look</span></div>
+        <div class="tf-panel-b">
+          <div class="tf-designs">
+            {% for key, label, desc in designs %}
+            <div class="tf-design {{ 'on' if (template.design if template else 'classic') == key else '' }}"
+                 data-design="{{ key }}" role="button" tabindex="0" title="{{ desc }}">
+              <div class="tf-thumb">
+                {% if key == 'classic' %}
+                  <div class="tf-bar" style="width:46%;margin:0 auto;"></div>
+                  <div class="tf-bar accent" style="width:100%;height:2px;"></div>
+                  <div class="tf-bar accent" style="width:30%;margin:0 auto;"></div>
+                  <div class="tf-row"><div class="tf-bar" style="width:40%"></div><div class="tf-bar" style="width:40%;margin-left:auto"></div></div>
+                  <div class="tf-bar" style="width:100%;height:8px;background:#e2e8f0;"></div>
+                {% elif key == 'modern' %}
+                  <div class="tf-bar accent" style="width:100%;height:4px;"></div>
+                  <div class="tf-row"><div class="tf-bar" style="width:35%"></div><div class="tf-bar accent" style="width:28%;margin-left:auto"></div></div>
+                  <div class="tf-bar" style="width:55%;background:#f1f5f9;height:9px;border-left:2px solid var(--accent,#0f766e)"></div>
+                  <div class="tf-bar" style="width:100%;height:8px;background:#e2e8f0;"></div>
+                {% elif key == 'minimal' %}
+                  <div class="tf-row"><div class="tf-bar" style="width:30%"></div><div class="tf-bar" style="width:22%;margin-left:auto"></div></div>
+                  <div style="height:7px"></div>
+                  <div class="tf-bar" style="width:34%"></div>
+                  <div class="tf-bar" style="width:100%;height:8px;background:#e2e8f0;"></div>
+                {% else %}
+                  <div class="tf-block" style="width:100%;"></div>
+                  <div class="tf-bar" style="width:38%"></div>
+                  <div class="tf-bar" style="width:100%;height:8px;background:#e2e8f0;"></div>
+                {% endif %}
+              </div>
+              <div class="tf-design-name">{{ label }}</div>
+              <div class="tf-design-desc">{{ desc }}</div>
+            </div>
+            {% endfor %}
+          </div>
         </div>
       </div>
-      <div class="form-group">
-        <label><input type="checkbox" name="is_default" {% if template and template.is_default %}checked{% endif %}> Set as default</label>
+
+      <div class="tf-panel" style="margin-top:14px;">
+        <div class="tf-panel-h"><span class="tf-step"><span class="tf-step-n">2</span> Pick a colour</span></div>
+        <div class="tf-panel-b">
+          <p class="tf-lead">Used for headings, the total, and the accent line.</p>
+          <div class="tf-swatches">
+            {% for hex, cname in accents %}
+            <div class="tf-sw {{ 'on' if (template.accent_color if template else '#0f766e')|lower == hex|lower else '' }}"
+                 data-accent="{{ hex }}" style="background:{{ hex }};" title="{{ cname }}"
+                 role="button" tabindex="0"></div>
+            {% endfor %}
+          </div>
+        </div>
       </div>
 
-      <div class="tmpl-help">
-        <b>Placeholders</b> — use these in your HTML template. They will be replaced with actual invoice data at print time.<br>
-        <b>Company:</b> <code>&#123;&#123;company_name&#125;&#125;</code> <code>&#123;&#123;company_address&#125;&#125;</code> <code>&#123;&#123;company_city&#125;&#125;</code> <code>&#123;&#123;company_phone&#125;&#125;</code> <code>&#123;&#123;company_email&#125;&#125;</code> <code>&#123;&#123;company_tax_id&#125;&#125;</code> <code>&#123;&#123;company_logo&#125;&#125;</code><br>
-        <b>Invoice:</b> <code>&#123;&#123;invoice_no&#125;&#125;</code> <code>&#123;&#123;invoice_date&#125;&#125;</code> <code>&#123;&#123;due_date&#125;&#125;</code> <code>&#123;&#123;status&#125;&#125;</code><br>
-        <b>Party (Customer/Supplier):</b> <code>&#123;&#123;party_name&#125;&#125;</code> <code>&#123;&#123;party_address&#125;&#125;</code> <code>&#123;&#123;party_city&#125;&#125;</code> <code>&#123;&#123;party_phone&#125;&#125;</code> <code>&#123;&#123;party_email&#125;&#125;</code> <code>&#123;&#123;party_tax_id&#125;&#125;</code><br>
-        <b>Items:</b> <code>&#123;&#123;items_table&#125;&#125;</code> — rendered as an HTML table with all line items<br>
-        <b>Totals:</b> <code>&#123;&#123;subtotal&#125;&#125;</code> <code>&#123;&#123;discount&#125;&#125;</code> <code>&#123;&#123;tax&#125;&#125;</code> <code>&#123;&#123;grand_total&#125;&#125;</code><br>
-        <b>Sales only:</b> <code>&#123;&#123;delivery_charges&#125;&#125;</code> <code>&#123;&#123;installation_charges&#125;&#125;</code><br>
-        <b>Procurement only:</b> <code>&#123;&#123;commission&#125;&#125;</code> <code>&#123;&#123;freight&#125;&#125;</code> <code>&#123;&#123;loading_unloading&#125;&#125;</code> <code>&#123;&#123;withholding_tax&#125;&#125;</code><br>
-        <b>Other:</b> <code>&#123;&#123;notes&#125;&#125;</code>
-      </div>
+      <div class="tf-panel" style="margin-top:14px;">
+        <div class="tf-panel-h">
+          <span class="tf-step"><span class="tf-step-n">3</span>
+            Choose what {{ 'the customer sees' if is_sales else 'appears' }}</span>
+        </div>
+        <div class="tf-panel-b">
+          <p class="tf-lead">Untick anything you would rather leave off the printed page.{% if is_sales %} This is your customer's copy.{% endif %}</p>
+          {% for group_name, fields in option_groups %}
+          <div class="tf-group">
+            <div class="tf-group-n">{{ group_name }}</div>
+            {% for key, label, help in fields %}
+            <label class="tf-opt">
+              <input type="checkbox" name="{{ key }}" class="tf-toggle" {% if options.get(key) %}checked{% endif %}>
+              <span>
+                <span class="tf-opt-l">{{ label }}</span>
+                {% if help %}<span class="tf-opt-h" style="display:block;">{{ help }}</span>{% endif %}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+          {% endfor %}
 
-      <div class="form-group">
-        <label>HTML Template Body</label>
-        <textarea name="body_html" class="form-control focus-ring" rows="20" style="font-family:monospace;font-size:13px;white-space:pre-wrap;" required>{{ template.body_html if template else default_body }}</textarea>
+          <details class="tf-adv" {% if template and template.is_custom %}open{% endif %}>
+            <summary>Advanced &mdash; write the HTML myself</summary>
+            <div class="tf-warn">
+              Only for someone comfortable with HTML. Switching this on stops the design
+              and tick boxes above from having any effect &mdash; the HTML below becomes
+              the invoice, exactly as written.
+            </div>
+            <label class="tf-opt" style="margin-top:10px;">
+              <input type="checkbox" id="customToggle" {% if template and template.is_custom %}checked{% endif %}>
+              <span class="tf-opt-l">Use my own HTML instead of a design</span>
+            </label>
+            <textarea name="body_html" id="bodyHtml" rows="16" spellcheck="false">{{ template.body_html if template and template.is_custom else default_body }}</textarea>
+            <div class="tf-codes">
+              Put any of these where you want the real value:<br>
+              {% for key in placeholders %}<code>&#123;&#123;{{ key }}&#125;&#125;</code> {% endfor %}
+            </div>
+          </details>
+        </div>
+        <div class="tf-actions">
+          <button type="submit" class="btn btn-primary">{{ 'Save changes' if template else 'Create template' }}</button>
+          <a href="{{ url_for('settings.index', tab='templates') }}" class="btn btn-outline">Cancel</a>
+        </div>
       </div>
+    </div>
 
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">{{ 'Update' if template else 'Create' }}</button>
-        <a href="{{ url_for('settings.index', tab='templates') }}" class="btn btn-outline">Cancel</a>
+    <!-- ── RIGHT: live preview ───────────────────────────────── -->
+    <div class="tf-panel" style="position:sticky;top:14px;">
+      <div class="tf-panel-h tf-preview-h">
+        <span>Preview</span>
+        <span class="tf-sample">Example data &mdash; not a real invoice</span>
       </div>
-    </form>
+      <div class="tf-preview-wrap">
+        <div class="tf-paper"><iframe id="tfPreview" title="Invoice preview"></iframe></div>
+      </div>
+    </div>
   </div>
-</div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  var form = document.getElementById('tfForm');
+  var designField = document.getElementById('designField');
+  var accentField = document.getElementById('accentField');
+  var customToggle = document.getElementById('customToggle');
+  var bodyHtml = document.getElementById('bodyHtml');
+  var frame = document.getElementById('tfPreview');
+  var lastDesign = designField.value === 'custom' ? 'classic' : designField.value;
+
+  function setAccentVar(hex) { document.documentElement.style.setProperty('--accent', hex); }
+  setAccentVar(accentField.value);
+
+  // The preview is rendered by the server: the design HTML is generated in
+  // Python, and a JS reimplementation would be a second source of truth that
+  // drifts from what actually prints.
+  var pending = false, inFlight = false;
+  function refresh() {
+    if (inFlight) { pending = true; return; }
+    inFlight = true;
+    fetch('{{ url_for("settings.preview_template") }}',
+          { method: 'POST', body: new FormData(form) })
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        var d = frame.contentDocument;
+        d.open();
+        d.write('<!doctype html><html><head><meta charset="utf-8">' +
+                '<style>body{margin:0;background:#fff;}</style></head><body>' +
+                html + '</body></html>');
+        d.close();
+        // Grow the frame to its content so the panel scrolls, not the iframe.
+        setTimeout(function () {
+          var h = d.body ? d.body.scrollHeight : 0;
+          if (h) { frame.style.minHeight = (h + 24) + 'px'; }
+        }, 40);
+      })
+      .catch(function () { /* preview is a convenience; never block the form */ })
+      .then(function () {
+        inFlight = false;
+        if (pending) { pending = false; refresh(); }
+      });
+  }
+
+  var timer = null;
+  function refreshSoon() { clearTimeout(timer); timer = setTimeout(refresh, 160); }
+
+  document.querySelectorAll('.tf-design').forEach(function (el) {
+    function pick() {
+      if (customToggle && customToggle.checked) { customToggle.checked = false; syncCustom(); }
+      document.querySelectorAll('.tf-design').forEach(function (o) { o.classList.remove('on'); });
+      el.classList.add('on');
+      designField.value = el.dataset.design;
+      lastDesign = el.dataset.design;
+      refreshSoon();
+    }
+    el.addEventListener('click', pick);
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+    });
+  });
+
+  document.querySelectorAll('.tf-sw').forEach(function (el) {
+    function pick() {
+      document.querySelectorAll('.tf-sw').forEach(function (o) { o.classList.remove('on'); });
+      el.classList.add('on');
+      accentField.value = el.dataset.accent;
+      setAccentVar(el.dataset.accent);
+      refreshSoon();
+    }
+    el.addEventListener('click', pick);
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+    });
+  });
+
+  document.querySelectorAll('.tf-toggle').forEach(function (el) {
+    el.addEventListener('change', refreshSoon);
+  });
+
+  function syncCustom() {
+    var on = customToggle.checked;
+    designField.value = on ? 'custom' : lastDesign;
+    document.querySelectorAll('.tf-design, .tf-sw').forEach(function (el) {
+      el.style.opacity = on ? '.45' : '';
+      el.style.pointerEvents = on ? 'none' : '';
+    });
+    document.querySelectorAll('.tf-toggle').forEach(function (el) { el.disabled = on; });
+    // A custom body is only submitted when custom is on; otherwise the server
+    // would store hand-written HTML that the design silently overwrites.
+    bodyHtml.disabled = !on;
+    refreshSoon();
+  }
+  if (customToggle) {
+    customToggle.addEventListener('change', syncCustom);
+    bodyHtml.addEventListener('input', refreshSoon);
+    syncCustom();
+  }
+
+  refresh();
+})();
+</script>
 {% endblock %}

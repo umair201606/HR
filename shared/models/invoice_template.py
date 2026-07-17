@@ -1,6 +1,31 @@
+"""Invoice print templates.
+
+Two ways to author a template:
+
+    A DESIGN + TOGGLES  pick a ready-made layout, tick what should appear, and
+                        the HTML is generated. This is the path that has to work
+                        for someone who does not write HTML — which is nearly
+                        everyone who configures an invoice.
+
+    CUSTOM HTML         hand-write the body. The escape hatch for the rare case
+                        a design cannot express, kept because taking it away
+                        would strand anyone already using it.
+
+Either way the stored ``body_html`` is the same thing: markup containing
+``{{placeholder}}`` tokens that ``render_invoice_template`` fills in at print
+time. Designs are compiled to body_html on save, so the print path never needs
+to know which authoring mode produced it.
+"""
+
+import json
 from datetime import datetime
+
 from shared.extensions import db
 
+
+# ── Placeholders ────────────────────────────────────────────────────────────
+# The contract with the print routes: every key here is supplied in the ctx
+# that invoices.py / purchase_invoice.py build.
 
 PLACEHOLDER_HELP = {
     "company_name": "Company name",
@@ -35,9 +60,500 @@ PLACEHOLDER_HELP = {
 }
 
 
+# ── Designs ─────────────────────────────────────────────────────────────────
+
+DESIGNS = [
+    ("classic", "Classic",
+     "Centred letterhead with ruled divisions. Formal and conservative — the "
+     "look most customers expect from an invoice."),
+    ("modern", "Modern",
+     "Logo left, invoice details right, under a slim colour bar. Clean and "
+     "current without being loud."),
+    ("minimal", "Minimal",
+     "Generous white space and hairline rules. Understated; lets the numbers "
+     "speak."),
+    ("bold", "Bold",
+     "Solid colour header block. High contrast and easy to pick out of a pile "
+     "of paperwork."),
+]
+DESIGN_KEYS = [k for k, _l, _d in DESIGNS]
+
+ACCENT_PRESETS = [
+    ("#0f766e", "Teal"),
+    ("#1d4ed8", "Blue"),
+    ("#6d28d9", "Purple"),
+    ("#b91c1c", "Red"),
+    ("#c2410c", "Orange"),
+    ("#166534", "Green"),
+    ("#334155", "Slate"),
+    ("#0f172a", "Black"),
+]
+
+
+# ── What can be shown ───────────────────────────────────────────────────────
+# (key, label, help). Grouped for the settings UI. Wording is deliberately in
+# the user's terms ("Their tax number") rather than the database field's.
+
+_COMMON_HEADER = [
+    ("show_logo", "Company logo", "Your logo at the top of the page"),
+    ("show_company_tax_id", "Your tax / NTN number", "Required on a tax invoice in most places"),
+    ("show_status", "Approved / unapproved stamp", "Useful internally, usually hidden from customers"),
+    ("show_due_date", "Due date", "When payment is expected"),
+]
+
+_COMMON_PARTY = [
+    ("show_party_address", "Their address", None),
+    ("show_party_contact", "Their phone and email", None),
+    ("show_party_tax_id", "Their tax / NTN number", "Needed if they claim input tax"),
+]
+
+_COMMON_TOTALS = [
+    ("show_discount", "Discount line", "Hide to show only the discounted price"),
+    ("show_tax", "Sales tax line", None),
+]
+
+_COMMON_FOOTER = [
+    ("show_notes", "Notes", "Whatever was typed in the invoice's notes box"),
+    ("show_signature", "Signature lines", "Space to sign on the printed page"),
+    ("show_thanks", "Closing line", None),
+]
+
+_SALES_TOTALS = [
+    ("show_delivery", "Delivery charges", None),
+    ("show_installation", "Installation charges", None),
+]
+
+_PURCHASE_TOTALS = [
+    ("show_commission", "Commission", None),
+    ("show_freight", "Freight", None),
+    ("show_loading", "Loading / unloading", None),
+    ("show_withholding", "Withholding tax", None),
+]
+
+
+def option_groups(doc_type):
+    """The toggles offered for a document type, grouped for the settings UI."""
+    totals = _COMMON_TOTALS + (_SALES_TOTALS if doc_type == "sales" else _PURCHASE_TOTALS)
+    return [
+        ("Header", _COMMON_HEADER),
+        ("Customer details" if doc_type == "sales" else "Supplier details", _COMMON_PARTY),
+        ("Amounts", totals),
+        ("Footer", _COMMON_FOOTER),
+    ]
+
+
+def default_options(doc_type):
+    """Sensible starting point: everything a document normally carries.
+
+    The approval stamp is off — it is an internal state, not something a
+    customer needs to see.
+    """
+    opts = {}
+    for _group, fields in option_groups(doc_type):
+        for key, _label, _help in fields:
+            opts[key] = True
+    opts["show_status"] = False
+    return opts
+
+
+def normalise_options(doc_type, raw):
+    """Coerce stored/submitted options to the full known set.
+
+    Unknown keys are dropped and missing keys fall back to the default, so a
+    template saved before an option existed keeps working and simply picks up
+    the new field's default.
+    """
+    known = default_options(doc_type)
+    if not raw:
+        return known
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (ValueError, TypeError):
+            return known
+    if not isinstance(raw, dict):
+        return known
+    return {k: bool(raw.get(k, v)) for k, v in known.items()}
+
+
+# ── HTML generation ─────────────────────────────────────────────────────────
+
+def _esc_attr(v):
+    return str(v or "").replace('"', "&quot;")
+
+
+def _totals_rows(doc_type, opts, accent):
+    """The money block, in the order an accountant reads it."""
+    rows = [("Subtotal", "{{subtotal}}", False)]
+    if opts.get("show_discount"):
+        rows.append(("Discount", "{{discount}}", False))
+    if opts.get("show_tax"):
+        rows.append(("Sales Tax", "{{tax}}", False))
+    if doc_type == "sales":
+        if opts.get("show_delivery"):
+            rows.append(("Delivery", "{{delivery_charges}}", False))
+        if opts.get("show_installation"):
+            rows.append(("Installation", "{{installation_charges}}", False))
+    else:
+        if opts.get("show_commission"):
+            rows.append(("Commission", "{{commission}}", False))
+        if opts.get("show_freight"):
+            rows.append(("Freight", "{{freight}}", False))
+        if opts.get("show_loading"):
+            rows.append(("Loading / Unloading", "{{loading_unloading}}", False))
+        if opts.get("show_withholding"):
+            rows.append(("Withholding Tax", "{{withholding_tax}}", False))
+    label = "Net Receivable" if doc_type == "sales" else "Net Payable"
+    rows.append((label, "{{grand_total}}", True))
+
+    out = []
+    for text, token, is_total in rows:
+        if is_total:
+            out.append(
+                f'<tr><td style="padding:10px 12px;text-align:right;font-weight:700;'
+                f'font-size:15px;border-top:2px solid {accent};">{text}</td>'
+                f'<td style="padding:10px 12px;text-align:right;font-weight:800;'
+                f'font-size:15px;border-top:2px solid {accent};color:{accent};'
+                f'white-space:nowrap;">{token}</td></tr>')
+        else:
+            out.append(
+                f'<tr><td style="padding:5px 12px;text-align:right;color:#475569;">{text}</td>'
+                f'<td style="padding:5px 12px;text-align:right;font-weight:600;'
+                f'white-space:nowrap;">{token}</td></tr>')
+    return "\n      ".join(out)
+
+
+def _party_block(doc_type, opts, label_style=""):
+    heading = "Bill To" if doc_type == "sales" else "From"
+    parts = [f'<div style="{label_style}">{heading}</div>',
+             '<div style="font-weight:700;font-size:15px;margin:4px 0 2px;">{{party_name}}</div>']
+    if opts.get("show_party_address"):
+        parts.append('<div style="color:#475569;">{{party_address}}</div>')
+        parts.append('<div style="color:#475569;">{{party_city}}</div>')
+    if opts.get("show_party_contact"):
+        parts.append('<div style="color:#475569;">{{party_phone}}</div>')
+        parts.append('<div style="color:#475569;">{{party_email}}</div>')
+    if opts.get("show_party_tax_id"):
+        parts.append('<div style="color:#475569;margin-top:3px;">NTN {{party_tax_id}}</div>')
+    return "\n        ".join(parts)
+
+
+def _meta_rows(opts, muted="#64748b"):
+    rows = [f'<div><span style="color:{muted};">Invoice #</span> '
+            '<strong>{{invoice_no}}</strong></div>',
+            f'<div><span style="color:{muted};">Date</span> '
+            '<strong>{{invoice_date}}</strong></div>']
+    if opts.get("show_due_date"):
+        rows.append(f'<div><span style="color:{muted};">Due</span> '
+                    '<strong>{{due_date}}</strong></div>')
+    if opts.get("show_status"):
+        rows.append(f'<div><span style="color:{muted};">Status</span> '
+                    '<strong>{{status}}</strong></div>')
+    return "\n        ".join(rows)
+
+
+def _footer(doc_type, opts, accent):
+    out = []
+    if opts.get("show_notes"):
+        out.append(
+            '<div style="margin-top:26px;padding-top:12px;border-top:1px solid #e2e8f0;'
+            'font-size:12px;color:#475569;">'
+            '<div style="font-weight:700;color:#0f172a;margin-bottom:3px;">Notes</div>'
+            '{{notes}}</div>')
+    if opts.get("show_signature"):
+        left = "Prepared By" if doc_type == "sales" else "Checked By"
+        right = "Authorised Signatory" if doc_type == "sales" else "Approved By"
+        out.append(
+            '<table style="width:100%;margin-top:44px;border-collapse:collapse;">'
+            '<tr>'
+            f'<td style="width:45%;border-top:1px solid #94a3b8;padding-top:6px;'
+            f'font-size:11px;color:#64748b;text-align:center;">{left}</td>'
+            '<td style="width:10%;"></td>'
+            f'<td style="width:45%;border-top:1px solid #94a3b8;padding-top:6px;'
+            f'font-size:11px;color:#64748b;text-align:center;">{right}</td>'
+            '</tr></table>')
+    if opts.get("show_thanks"):
+        msg = ("Thank you for your business." if doc_type == "sales"
+               else "This document is for internal record.")
+        out.append(
+            f'<div style="margin-top:22px;text-align:center;font-size:11px;'
+            f'color:{accent};letter-spacing:.4px;">{msg}</div>')
+    return "\n  ".join(out)
+
+
+def _title(doc_type):
+    return "SALES INVOICE" if doc_type == "sales" else "PURCHASE INVOICE"
+
+
+def _logo(opts):
+    return "{{company_logo}}" if opts.get("show_logo") else ""
+
+
+def _company_tax(opts, style="color:#64748b;"):
+    return (f'<div style="{style}">NTN {{{{company_tax_id}}}}</div>'
+            if opts.get("show_company_tax_id") else "")
+
+
+_PAGE_OPEN = ('<div style="font-family:Inter,Segoe UI,Arial,sans-serif;max-width:820px;'
+              'margin:0 auto;padding:32px;color:#0f172a;font-size:13px;line-height:1.5;">')
+_PAGE_CLOSE = "</div>"
+
+
+def _design_classic(doc_type, opts, accent):
+    return f"""{_PAGE_OPEN}
+  <div style="text-align:center;padding-bottom:16px;">
+    {_logo(opts)}
+    <div style="font-size:24px;font-weight:800;letter-spacing:.5px;margin-top:6px;">{{{{company_name}}}}</div>
+    <div style="color:#475569;margin-top:3px;">{{{{company_address}}}}, {{{{company_city}}}}</div>
+    <div style="color:#475569;">{{{{company_phone}}}} &nbsp;&bull;&nbsp; {{{{company_email}}}}</div>
+    {_company_tax(opts)}
+  </div>
+  <div style="border-top:3px double {accent};margin:4px 0 18px;"></div>
+  <div style="text-align:center;font-size:15px;font-weight:800;letter-spacing:3px;color:{accent};margin-bottom:18px;">{_title(doc_type)}</div>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:18px;">
+    <tr>
+      <td style="width:55%;vertical-align:top;">
+        {_party_block(doc_type, opts, "font-size:10px;font-weight:700;letter-spacing:1px;color:#64748b;text-transform:uppercase;")}
+      </td>
+      <td style="width:45%;vertical-align:top;text-align:right;line-height:1.9;">
+        {_meta_rows(opts)}
+      </td>
+    </tr>
+  </table>
+  {{{{items_table}}}}
+  <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+    <tr><td style="width:62%;"></td><td style="width:38%;">
+      <table style="width:100%;border-collapse:collapse;">
+      {_totals_rows(doc_type, opts, accent)}
+      </table>
+    </td></tr>
+  </table>
+  {_footer(doc_type, opts, accent)}
+{_PAGE_CLOSE}"""
+
+
+def _design_modern(doc_type, opts, accent):
+    return f"""{_PAGE_OPEN}
+  <div style="height:6px;background:{accent};border-radius:3px;margin-bottom:22px;"></div>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+    <tr>
+      <td style="width:55%;vertical-align:top;">
+        {_logo(opts)}
+        <div style="font-size:20px;font-weight:800;margin-top:4px;">{{{{company_name}}}}</div>
+        <div style="color:#475569;margin-top:3px;">{{{{company_address}}}}, {{{{company_city}}}}</div>
+        <div style="color:#475569;">{{{{company_phone}}}} &nbsp;&bull;&nbsp; {{{{company_email}}}}</div>
+        {_company_tax(opts)}
+      </td>
+      <td style="width:45%;vertical-align:top;text-align:right;">
+        <div style="font-size:26px;font-weight:800;color:{accent};letter-spacing:1px;">{_title(doc_type)}</div>
+        <div style="margin-top:10px;line-height:1.9;">
+        {_meta_rows(opts)}
+        </div>
+      </td>
+    </tr>
+  </table>
+  <div style="background:#f8fafc;border-left:3px solid {accent};padding:12px 14px;border-radius:0 6px 6px 0;margin-bottom:20px;">
+    {_party_block(doc_type, opts, "font-size:10px;font-weight:700;letter-spacing:1px;color:" + accent + ";text-transform:uppercase;")}
+  </div>
+  {{{{items_table}}}}
+  <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+    <tr><td style="width:60%;"></td><td style="width:40%;background:#f8fafc;border-radius:6px;">
+      <table style="width:100%;border-collapse:collapse;">
+      {_totals_rows(doc_type, opts, accent)}
+      </table>
+    </td></tr>
+  </table>
+  {_footer(doc_type, opts, accent)}
+{_PAGE_CLOSE}"""
+
+
+def _design_minimal(doc_type, opts, accent):
+    return f"""{_PAGE_OPEN}
+  <table style="width:100%;border-collapse:collapse;margin-bottom:40px;">
+    <tr>
+      <td style="width:60%;vertical-align:top;">
+        {_logo(opts)}
+        <div style="font-size:16px;font-weight:700;letter-spacing:.3px;margin-top:4px;">{{{{company_name}}}}</div>
+        <div style="color:#94a3b8;font-size:12px;margin-top:2px;">{{{{company_address}}}}, {{{{company_city}}}}</div>
+        <div style="color:#94a3b8;font-size:12px;">{{{{company_phone}}}} &nbsp;&bull;&nbsp; {{{{company_email}}}}</div>
+        {_company_tax(opts, "color:#94a3b8;font-size:12px;")}
+      </td>
+      <td style="width:40%;vertical-align:top;text-align:right;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:3px;color:#94a3b8;">{_title(doc_type)}</div>
+        <div style="margin-top:8px;line-height:1.9;font-size:12px;">
+        {_meta_rows(opts, "#94a3b8")}
+        </div>
+      </td>
+    </tr>
+  </table>
+  <div style="margin-bottom:24px;">
+    {_party_block(doc_type, opts, "font-size:10px;font-weight:700;letter-spacing:1.5px;color:#94a3b8;text-transform:uppercase;")}
+  </div>
+  {{{{items_table}}}}
+  <table style="width:100%;border-collapse:collapse;margin-top:18px;">
+    <tr><td style="width:65%;"></td><td style="width:35%;">
+      <table style="width:100%;border-collapse:collapse;">
+      {_totals_rows(doc_type, opts, accent)}
+      </table>
+    </td></tr>
+  </table>
+  {_footer(doc_type, opts, accent)}
+{_PAGE_CLOSE}"""
+
+
+def _design_bold(doc_type, opts, accent):
+    return f"""{_PAGE_OPEN}
+  <table style="width:100%;border-collapse:collapse;background:{accent};border-radius:8px;margin-bottom:24px;">
+    <tr>
+      <td style="padding:22px 24px;vertical-align:middle;">
+        {_logo(opts)}
+        <div style="font-size:22px;font-weight:800;color:#fff;margin-top:4px;">{{{{company_name}}}}</div>
+        <div style="color:rgba(255,255,255,.85);font-size:12px;margin-top:3px;">{{{{company_address}}}}, {{{{company_city}}}}</div>
+        <div style="color:rgba(255,255,255,.85);font-size:12px;">{{{{company_phone}}}} &nbsp;&bull;&nbsp; {{{{company_email}}}}</div>
+      </td>
+      <td style="padding:22px 24px;vertical-align:middle;text-align:right;">
+        <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:1px;">{_title(doc_type)}</div>
+        <div style="margin-top:8px;line-height:1.9;color:#fff;font-size:12px;">
+        {_meta_rows(opts, "rgba(255,255,255,.72)")}
+        </div>
+      </td>
+    </tr>
+  </table>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+    <tr>
+      <td style="width:60%;vertical-align:top;">
+        {_party_block(doc_type, opts, "font-size:10px;font-weight:700;letter-spacing:1px;color:" + accent + ";text-transform:uppercase;")}
+      </td>
+      <td style="width:40%;vertical-align:top;text-align:right;">
+        {_company_tax(opts, "color:#64748b;font-size:12px;")}
+      </td>
+    </tr>
+  </table>
+  {{{{items_table}}}}
+  <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+    <tr><td style="width:58%;"></td><td style="width:42%;">
+      <table style="width:100%;border-collapse:collapse;">
+      {_totals_rows(doc_type, opts, accent)}
+      </table>
+    </td></tr>
+  </table>
+  {_footer(doc_type, opts, accent)}
+{_PAGE_CLOSE}"""
+
+
+_BUILDERS = {
+    "classic": _design_classic,
+    "modern": _design_modern,
+    "minimal": _design_minimal,
+    "bold": _design_bold,
+}
+
+
+def build_body(design, doc_type, accent_color, options):
+    """Compile a design + toggles into template HTML.
+
+    Called on save, so ``body_html`` is always the single thing the print path
+    reads, regardless of how it was authored.
+    """
+    doc_type = "sales" if doc_type == "sales" else "purchase"
+    builder = _BUILDERS.get(design, _design_classic)
+    accent = accent_color if (accent_color or "").startswith("#") else "#0f766e"
+    return builder(doc_type, normalise_options(doc_type, options), accent)
+
+
+# ── Preview ─────────────────────────────────────────────────────────────────
+
+def _sample_items_table():
+    """Mirrors the items table the print routes build, so the preview shows the
+    real thing rather than an approximation of it."""
+    rows = [
+        (1, "SKU-1001", "Solar Panel 550W Monocrystalline", 12, "pcs", "24,500.00", "294,000.00"),
+        (2, "SKU-1002", "Hybrid Inverter 8kW", 2, "pcs", "185,000.00", "370,000.00"),
+        (3, "SKU-1180", "Mounting Rail 4.2m Aluminium", 30, "pcs", "3,200.00", "96,000.00"),
+    ]
+    body = ""
+    for n, sku, desc, qty, unit, price, total in rows:
+        body += (
+            "<tr>"
+            f"<td style='padding:6px 8px;border:1px solid #e2e8f0;text-align:center;'>{n}</td>"
+            f"<td style='padding:6px 8px;border:1px solid #e2e8f0;'>{sku}</td>"
+            f"<td style='padding:6px 8px;border:1px solid #e2e8f0;'>{desc}</td>"
+            f"<td style='padding:6px 8px;border:1px solid #e2e8f0;text-align:center;'>{qty}</td>"
+            f"<td style='padding:6px 8px;border:1px solid #e2e8f0;text-align:right;'>{unit}</td>"
+            f"<td style='padding:6px 8px;border:1px solid #e2e8f0;text-align:right;'>{price}</td>"
+            f"<td style='padding:6px 8px;border:1px solid #e2e8f0;text-align:right;'>{total}</td>"
+            "</tr>")
+    return (
+        '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+        '<thead><tr style="background:#1e293b;color:#fff;">'
+        '<th style="padding:8px;border:1px solid #1e293b;text-align:center;">#</th>'
+        '<th style="padding:8px;border:1px solid #1e293b;text-align:left;">SKU</th>'
+        '<th style="padding:8px;border:1px solid #1e293b;text-align:left;">Description</th>'
+        '<th style="padding:8px;border:1px solid #1e293b;text-align:center;">Qty</th>'
+        '<th style="padding:8px;border:1px solid #1e293b;text-align:center;">Unit</th>'
+        '<th style="padding:8px;border:1px solid #1e293b;text-align:right;">Price</th>'
+        '<th style="padding:8px;border:1px solid #1e293b;text-align:right;">Total</th>'
+        '</tr></thead><tbody>' + body + '</tbody></table>')
+
+
+def sample_context(doc_type, company=None):
+    """Realistic stand-in data for the live preview.
+
+    Uses the real company profile wherever it is filled in, so the preview shows
+    the user their own letterhead rather than a fictional one.
+    """
+    def c(attr, fallback):
+        val = getattr(company, attr, None) if company else None
+        return val or fallback
+
+    logo = ""
+    if company is not None and getattr(company, "logo_url", None):
+        logo = f'<img src="{_esc_attr(company.logo_url)}" style="max-height:60px;" alt="Logo">'
+
+    party = ({"name": "Meezan Traders (Pvt) Ltd", "addr": "14-B Gulberg III",
+              "city": "Lahore", "phone": "+92 42 3577 1200",
+              "email": "accounts@meezantraders.pk", "tax": "3520112-8"}
+             if doc_type == "sales" else
+             {"name": "Zenith Solar Supplies", "addr": "Plot 22, SITE Area",
+              "city": "Karachi", "phone": "+92 21 3255 8800",
+              "email": "sales@zenithsolar.pk", "tax": "1790443-2"})
+
+    return {
+        "company_logo": logo,
+        "company_name": c("company_name", "Your Company Name"),
+        "company_address": c("address", "123 Business Road"),
+        "company_city": c("city", "Lahore"),
+        "company_phone": c("phone", "+92 42 1234 5678"),
+        "company_email": c("email", "info@yourcompany.pk"),
+        "company_tax_id": c("tax_id", "1234567-8"),
+        "invoice_no": "VCH-202607-0042" if doc_type == "sales" else "PINV-202607-0042",
+        "invoice_date": datetime.utcnow().strftime("%d-%b-%Y"),
+        "due_date": datetime.utcnow().strftime("%d-%b-%Y"),
+        "status": "Approved",
+        "party_name": party["name"],
+        "party_address": party["addr"],
+        "party_city": party["city"],
+        "party_phone": party["phone"],
+        "party_email": party["email"],
+        "party_tax_id": party["tax"],
+        "items_table": _sample_items_table(),
+        "subtotal": "760,000.00",
+        "discount": "38,000.00",
+        "tax": "122,760.00",
+        "delivery_charges": "12,000.00",
+        "installation_charges": "25,000.00",
+        "commission": "8,500.00",
+        "freight": "14,000.00",
+        "loading_unloading": "4,200.00",
+        "withholding_tax": "7,600.00",
+        "grand_total": "881,760.00",
+        "notes": "Payment due within 30 days. Goods remain the property of the "
+                 "seller until paid in full.",
+    }
+
+
 def render_invoice_template(body_html, ctx):
     """Replace {{placeholder}} tokens in body_html with values from ctx dict."""
-    import html as html_mod
     for key, val in ctx.items():
         token = "{{" + key + "}}"
         if val is None:
@@ -46,6 +562,8 @@ def render_invoice_template(body_html, ctx):
     return body_html
 
 
+# ── Model ───────────────────────────────────────────────────────────────────
+
 class InvoiceTemplate(db.Model):
     __tablename__ = "invoice_templates"
     id = db.Column(db.Integer, primary_key=True)
@@ -53,8 +571,36 @@ class InvoiceTemplate(db.Model):
     type = db.Column(db.String(10), nullable=False)  # "sales" or "purchase"
     body_html = db.Column(db.Text, nullable=False)
     is_default = db.Column(db.Boolean, default=False)
+    # How this template was authored. "custom" means body_html was hand-written
+    # and must never be regenerated; anything else is compiled from the design.
+    design = db.Column(db.String(20), default="classic")
+    accent_color = db.Column(db.String(20), default="#0f766e")
+    options_json = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def is_custom(self):
+        # A NULL design is a template that pre-dates the designs: its body_html
+        # was hand-written, so it must be treated as custom. Defaulting it to a
+        # design instead would silently overwrite the user's own HTML the first
+        # time they opened it and pressed Save.
+        return self.design in (None, "", "custom")
+
+    @property
+    def options(self):
+        return normalise_options(self.type, self.options_json)
+
+    def set_options(self, opts):
+        self.options_json = json.dumps(opts)
+
+    def recompile(self):
+        """Regenerate body_html from the design. No-op for custom templates,
+        whose body is the user's own and must survive untouched."""
+        if self.is_custom:
+            return
+        self.body_html = build_body(self.design, self.type, self.accent_color,
+                                    self.options)
 
     @classmethod
     def get_default(cls, doc_type):
@@ -65,94 +611,24 @@ class InvoiceTemplate(db.Model):
 
     @classmethod
     def default_body(cls, doc_type):
-        if doc_type == "sales":
-            return (
-                '<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">\n'
-                '  <div style="text-align: center; margin-bottom: 30px;">\n'
-                '    {{company_logo}}\n'
-                '    <h1 style="margin: 5px 0;">{{company_name}}</h1>\n'
-                '    <p style="margin: 2px 0;">{{company_address}}, {{company_city}}</p>\n'
-                '    <p style="margin: 2px 0;">Phone: {{company_phone}} | Email: {{company_email}}</p>\n'
-                '    <p style="margin: 2px 0;">NTN: {{company_tax_id}}</p>\n'
-                '  </div>\n'
-                '  <hr style="border: 1px solid #e2e8f0;">\n'
-                '  <h2 style="text-align: center; color: #0d9488;">SALES INVOICE</h2>\n'
-                '  <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">\n'
-                '    <tr>\n'
-                '      <td style="width: 50%; vertical-align: top; padding: 5px;">\n'
-                '        <strong>Bill To:</strong><br>\n'
-                '        {{party_name}}<br>\n'
-                '        {{party_address}}<br>\n'
-                '        {{party_city}}<br>\n'
-                '        Phone: {{party_phone}}<br>\n'
-                '        Email: {{party_email}}<br>\n'
-                '        NTN: {{party_tax_id}}\n'
-                '      </td>\n'
-                '      <td style="width: 50%; vertical-align: top; padding: 5px; text-align: right;">\n'
-                '        <strong>Invoice #:</strong> {{invoice_no}}<br>\n'
-                '        <strong>Date:</strong> {{invoice_date}}<br>\n'
-                '        <strong>Due Date:</strong> {{due_date}}<br>\n'
-                '        <strong>Status:</strong> {{status}}\n'
-                '      </td>\n'
-                '    </tr>\n'
-                '  </table>\n'
-                '  {{items_table}}\n'
-                '  <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">\n'
-                '    <tr><td style="text-align: right; padding: 5px; width: 80%;"><strong>Subtotal:</strong></td><td style="text-align: right; padding: 5px; width: 20%;">{{subtotal}}</td></tr>\n'
-                '    <tr><td style="text-align: right; padding: 5px;"><strong>Discount:</strong></td><td style="text-align: right; padding: 5px;">{{discount}}</td></tr>\n'
-                '    <tr><td style="text-align: right; padding: 5px;"><strong>Sales Tax:</strong></td><td style="text-align: right; padding: 5px;">{{tax}}</td></tr>\n'
-                '    <tr><td style="text-align: right; padding: 5px;"><strong>Delivery Charges:</strong></td><td style="text-align: right; padding: 5px;">{{delivery_charges}}</td></tr>\n'
-                '    <tr><td style="text-align: right; padding: 5px;"><strong>Installation Charges:</strong></td><td style="text-align: right; padding: 5px;">{{installation_charges}}</td></tr>\n'
-                '    <tr style="font-weight: 700; font-size: 16px; border-top: 2px solid #0d9488;"><td style="text-align: right; padding: 5px;">Net Receivable:</td><td style="text-align: right; padding: 5px;">{{grand_total}}</td></tr>\n'
-                '  </table>\n'
-                '  <div style="margin-top: 20px; padding: 10px; border-top: 1px solid #e2e8f0; font-size: 12px;">\n'
-                '    <p>{{notes}}</p>\n'
-                '  </div>\n'
-                '</div>'
-            )
-        return (
-            '<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">\n'
-            '  <div style="text-align: center; margin-bottom: 30px;">\n'
-            '    {{company_logo}}\n'
-            '    <h1 style="margin: 5px 0;">{{company_name}}</h1>\n'
-            '    <p style="margin: 2px 0;">{{company_address}}, {{company_city}}</p>\n'
-            '    <p style="margin: 2px 0;">Phone: {{company_phone}} | Email: {{company_email}}</p>\n'
-            '    <p style="margin: 2px 0;">NTN: {{company_tax_id}}</p>\n'
-            '  </div>\n'
-            '  <hr style="border: 1px solid #e2e8f0;">\n'
-            '  <h2 style="text-align: center; color: #7c3aed;">PURCHASE INVOICE</h2>\n'
-            '  <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">\n'
-            '    <tr>\n'
-            '      <td style="width: 50%; vertical-align: top; padding: 5px;">\n'
-            '        <strong>From:</strong><br>\n'
-            '        {{party_name}}<br>\n'
-            '        {{party_address}}<br>\n'
-            '        {{party_city}}<br>\n'
-            '        Phone: {{party_phone}}<br>\n'
-            '        Email: {{party_email}}<br>\n'
-            '        NTN: {{party_tax_id}}\n'
-            '      </td>\n'
-            '      <td style="width: 50%; vertical-align: top; padding: 5px; text-align: right;">\n'
-            '        <strong>Invoice #:</strong> {{invoice_no}}<br>\n'
-            '        <strong>Date:</strong> {{invoice_date}}<br>\n'
-            '        <strong>Due Date:</strong> {{due_date}}<br>\n'
-            '        <strong>Status:</strong> {{status}}\n'
-            '      </td>\n'
-            '    </tr>\n'
-            '  </table>\n'
-            '  {{items_table}}\n'
-            '  <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">\n'
-            '    <tr><td style="text-align: right; padding: 5px; width: 80%;"><strong>Subtotal:</strong></td><td style="text-align: right; padding: 5px; width: 20%;">{{subtotal}}</td></tr>\n'
-            '    <tr><td style="text-align: right; padding: 5px;"><strong>Discount:</strong></td><td style="text-align: right; padding: 5px;">{{discount}}</td></tr>\n'
-            '    <tr><td style="text-align: right; padding: 5px;"><strong>Sales Tax:</strong></td><td style="text-align: right; padding: 5px;">{{tax}}</td></tr>\n'
-            '    <tr><td style="text-align: right; padding: 5px;"><strong>Commission:</strong></td><td style="text-align: right; padding: 5px;">{{commission}}</td></tr>\n'
-            '    <tr><td style="text-align: right; padding: 5px;"><strong>Freight:</strong></td><td style="text-align: right; padding: 5px;">{{freight}}</td></tr>\n'
-            '    <tr><td style="text-align: right; padding: 5px;"><strong>Loading/Unloading:</strong></td><td style="text-align: right; padding: 5px;">{{loading_unloading}}</td></tr>\n'
-            '    <tr><td style="text-align: right; padding: 5px;"><strong>Withholding Tax:</strong></td><td style="text-align: right; padding: 5px;">{{withholding_tax}}</td></tr>\n'
-            '    <tr style="font-weight: 700; font-size: 16px; border-top: 2px solid #7c3aed;"><td style="text-align: right; padding: 5px;">Net Payable:</td><td style="text-align: right; padding: 5px;">{{grand_total}}</td></tr>\n'
-            '  </table>\n'
-            '  <div style="margin-top: 20px; padding: 10px; border-top: 1px solid #e2e8f0; font-size: 12px;">\n'
-            '    <p>{{notes}}</p>\n'
-            '  </div>\n'
-            '</div>'
-        )
+        """Starting HTML for a new template — the Classic design at defaults."""
+        return build_body("classic", doc_type, "#0f766e", default_options(doc_type))
+
+    @classmethod
+    def seed_defaults(cls):
+        """Give each document type a usable template out of the box.
+
+        Without one, printing on a fresh database silently produces nothing:
+        the print routes look up a template and skip rendering when none exists.
+        """
+        for doc_type, name in (("sales", "Standard Sales Invoice"),
+                               ("purchase", "Standard Purchase Invoice")):
+            if cls.query.filter_by(type=doc_type).first():
+                continue
+            opts = default_options(doc_type)
+            db.session.add(cls(
+                name=name, type=doc_type, design="classic",
+                accent_color="#0f766e", options_json=json.dumps(opts),
+                is_default=True,
+                body_html=build_body("classic", doc_type, "#0f766e", opts)))
+        db.session.commit()

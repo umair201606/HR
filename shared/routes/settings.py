@@ -15,6 +15,7 @@ HR's own settings intentionally stay in the HR module
 (``compensation.tax_settings`` for income-tax slabs, ``auth.account_settings``
 for self-service profile).
 """
+import re
 from datetime import date, datetime
 
 from flask import (Blueprint, render_template, request, redirect, url_for,
@@ -26,7 +27,10 @@ from shared.models.base import User, UserPermission
 from shared.models.company_settings import (CompanyInfo, AccountingPeriod,
                                             ReportSettings, PL_SECTIONS)
 from shared.models.inventory_settings import InventorySettings
-from shared.models.invoice_template import InvoiceTemplate
+from shared.models.invoice_template import (
+    InvoiceTemplate, DESIGNS, DESIGN_KEYS, ACCENT_PRESETS, PLACEHOLDER_HELP,
+    option_groups, default_options, build_body, render_invoice_template,
+    sample_context)
 from shared.models.ledger import ChartOfAccount
 from shared.permissions import MODULES, ACTIONS
 
@@ -398,6 +402,59 @@ def select_document_template(doc):
 
 
 # ── Invoice template management ─────────────────────────────────────────────
+# Templates are authored by picking a design and ticking what should appear;
+# the HTML is compiled from that on save. Hand-written HTML stays available as
+# "custom" for anyone who needs it. See shared/models/invoice_template.py.
+
+
+def _template_ctx(template, doc_type):
+    """Everything template_form.html needs to render, for new or existing."""
+    return {
+        "template": template,
+        "doc_type": doc_type,
+        "designs": DESIGNS,
+        "accents": ACCENT_PRESETS,
+        "option_groups": option_groups(doc_type),
+        "options": (template.options if template else default_options(doc_type)),
+        "placeholders": PLACEHOLDER_HELP,
+        "default_body": InvoiceTemplate.default_body(doc_type),
+    }
+
+
+def _read_template_form(doc_type):
+    """(name, design, accent, options, custom_body, is_default) from the form."""
+    design = request.form.get("design", "classic")
+    if design not in DESIGN_KEYS and design != "custom":
+        design = "classic"
+    accent = request.form.get("accent_color", "#0f766e")
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent or ""):
+        accent = "#0f766e"
+    opts = {}
+    for _group, fields in option_groups(doc_type):
+        for key, _label, _help in fields:
+            opts[key] = request.form.get(key) == "on"
+    return (request.form.get("name", "").strip(), design, accent, opts,
+            request.form.get("body_html", "").strip(),
+            request.form.get("is_default") == "on")
+
+
+@settings_bp.route("/templates/preview", methods=["POST"])
+@login_required
+def preview_template():
+    """Render the current form state against sample data.
+
+    Server-side on purpose: the design HTML is generated in Python, and a
+    JavaScript copy of it would be a second source of truth that drifts. The
+    form posts what it has and swaps in whatever comes back.
+    """
+    denied = _require("templates")
+    if denied:
+        return denied
+    doc_type = "sales" if request.form.get("type") == "sales" else "purchase"
+    _name, design, accent, opts, custom_body, _default = _read_template_form(doc_type)
+    body = custom_body if design == "custom" else build_body(design, doc_type, accent, opts)
+    return render_invoice_template(body, sample_context(doc_type, CompanyInfo.get()))
+
 
 @settings_bp.route("/templates/create", methods=["GET", "POST"])
 @login_required
@@ -405,29 +462,36 @@ def create_template():
     denied = _require("templates")
     if denied:
         return denied
+    doc_type = ("sales" if request.values.get("type") == "sales" else "purchase")
     if request.method == "POST":
-        name = request.form["name"].strip()
-        ttype = request.form["type"]
-        body = request.form.get("body_html", "").strip()
-        is_default = request.form.get("is_default") == "on"
+        name, design, accent, opts, custom_body, is_default = _read_template_form(doc_type)
+        if not name:
+            flash("Give the template a name.", "error")
+            return render_template("settings/template_form.html",
+                                   **_template_ctx(None, doc_type))
+        if design == "custom" and not custom_body:
+            flash("A custom template needs some HTML.", "error")
+            return render_template("settings/template_form.html",
+                                   **_template_ctx(None, doc_type))
 
-        if not name or not body:
-            flash("Name and body are required.", "error")
-            return render_template("settings/template_form.html", template=None,
-                                   default_body=InvoiceTemplate.default_body(ttype))
-
-        if is_default:
-            InvoiceTemplate.query.filter_by(type=ttype, is_default=True).update({"is_default": False})
-
-        t = InvoiceTemplate(name=name, type=ttype, body_html=body, is_default=is_default)
+        t = InvoiceTemplate(name=name, type=doc_type, design=design,
+                            accent_color=accent, is_default=is_default,
+                            body_html=custom_body or "")
+        t.set_options(opts)
+        t.recompile()
+        # The first template of its type becomes the default: otherwise it is
+        # created and nothing prints with it, which reads as the save failing.
+        if is_default or not InvoiceTemplate.query.filter_by(type=doc_type).first():
+            InvoiceTemplate.query.filter_by(type=doc_type, is_default=True).update(
+                {"is_default": False})
+            t.is_default = True
         db.session.add(t)
         db.session.commit()
         flash(f"Template '{name}' created.", "success")
         return redirect(url_for("settings.index", tab="templates"))
 
-    ttype = request.args.get("type", "purchase")
-    return render_template("settings/template_form.html", template=None,
-                           default_body=InvoiceTemplate.default_body(ttype))
+    return render_template("settings/template_form.html",
+                           **_template_ctx(None, doc_type))
 
 
 @settings_bp.route("/templates/edit/<int:id>", methods=["GET", "POST"])
@@ -438,27 +502,33 @@ def edit_template(id):
         return denied
     t = InvoiceTemplate.query.get_or_404(id)
     if request.method == "POST":
-        name = request.form["name"].strip()
-        body = request.form.get("body_html", "").strip()
-        is_default = request.form.get("is_default") == "on"
-
-        if not name or not body:
-            flash("Name and body are required.", "error")
-            return render_template("settings/template_form.html", template=t,
-                                   default_body=InvoiceTemplate.default_body(t.type))
+        name, design, accent, opts, custom_body, is_default = _read_template_form(t.type)
+        if not name:
+            flash("Give the template a name.", "error")
+            return render_template("settings/template_form.html",
+                                   **_template_ctx(t, t.type))
+        if design == "custom" and not custom_body:
+            flash("A custom template needs some HTML.", "error")
+            return render_template("settings/template_form.html",
+                                   **_template_ctx(t, t.type))
 
         if is_default and not t.is_default:
-            InvoiceTemplate.query.filter_by(type=t.type, is_default=True).update({"is_default": False})
-
+            InvoiceTemplate.query.filter_by(type=t.type, is_default=True).update(
+                {"is_default": False})
         t.name = name
-        t.body_html = body
-        t.is_default = is_default
+        t.design = design
+        t.accent_color = accent
+        t.set_options(opts)
+        if design == "custom":
+            t.body_html = custom_body
+        else:
+            t.recompile()
+        t.is_default = is_default or t.is_default
         db.session.commit()
         flash(f"Template '{name}' updated.", "success")
         return redirect(url_for("settings.index", tab="templates"))
 
-    return render_template("settings/template_form.html", template=t,
-                           default_body=InvoiceTemplate.default_body(t.type))
+    return render_template("settings/template_form.html", **_template_ctx(t, t.type))
 
 
 @settings_bp.route("/templates/delete/<int:id>")
@@ -468,7 +538,16 @@ def delete_template(id):
     if denied:
         return denied
     t = InvoiceTemplate.query.get_or_404(id)
+    was_default, doc_type = t.is_default, t.type
     db.session.delete(t)
+    db.session.flush()
+    # Never leave a type with templates but no default — the print routes fall
+    # back to the first by id, but the settings screen would show none marked.
+    if was_default:
+        nxt = InvoiceTemplate.query.filter_by(type=doc_type).order_by(
+            InvoiceTemplate.id).first()
+        if nxt:
+            nxt.is_default = True
     db.session.commit()
     flash(f"Template '{t.name}' deleted.", "success")
     return redirect(url_for("settings.index", tab="templates"))
